@@ -270,6 +270,10 @@ void FtrlProblem::validate() {
     }
     va_loss = local_va_loss / test_data->l;
 
+    if(param->no_auc) {
+        va_auc = 0;
+        return;
+    }
     sort(va_orders.begin(), va_orders.end(), [&va_scores] (FtrlInt i, FtrlInt j) {return va_scores[i] < va_scores[j];});
 
     FtrlFloat prev_score = va_scores[0];
@@ -481,70 +485,82 @@ void FtrlProblem::solve() {
     print_header_info();
     FtrlInt nr_chunk = data->nr_chunk;
     FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
+    FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
+    vector<FtrlFloat> prev_w(data->n, 0);
     for (t = 0; t < param->nr_pass; t++) {
-    int ind = 0;
-    vector<FtrlInt> outer_order(nr_chunk);
-    iota(outer_order.begin(), outer_order.end(), 0);
-    random_shuffle(outer_order.begin(),outer_order.end());
-    for (auto chunk_id:outer_order) {
-        FtrlChunk chunk = data->chunks[chunk_id];
+        vector<FtrlInt> outer_order(nr_chunk);
+        iota(outer_order.begin(), outer_order.end(), 0);
+        random_shuffle(outer_order.begin(),outer_order.end());
+        for (auto chunk_id:outer_order) {
+            FtrlChunk chunk = data->chunks[chunk_id];
 
-        chunk.read();
-        vector<FtrlInt> inner_oder(chunk.l);
-        iota(inner_oder.begin(), inner_oder.end(),0);
-        random_shuffle(inner_oder.begin(), inner_oder.end());
+            chunk.read();
+            vector<FtrlInt> inner_oder(chunk.l);
+            iota(inner_oder.begin(), inner_oder.end(),0);
+            random_shuffle(inner_oder.begin(), inner_oder.end());
 
 #pragma omp parallel for schedule(guided)
-        for (FtrlInt ii = 0; ii < chunk.l; ii++) {
-            FtrlInt i = inner_oder[ii];
-            FtrlFloat y=chunk.labels[i], wTx=0;
+            for (FtrlInt ii = 0; ii < chunk.l; ii++) {
+                FtrlInt i = inner_oder[ii];
+                FtrlFloat y=chunk.labels[i], wTx=0;
 
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val, zi = z[idx], ni = n[idx];
+                for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+                    Node x = chunk.nodes[s];
+                    FtrlInt idx = x.idx;
+                    FtrlFloat val = x.val, zi = z[idx], ni = n[idx];
 
-                if (abs(zi) > l1*f[idx]) {
-                    w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
+                    if (abs(zi) > l1*f[idx]) {
+                        w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
+                    }
+                    else {
+                        w[idx] = 0;
+                    }
+                    wTx += w[idx]*val;
+                }
+
+                FtrlFloat exp_m, tmp;
+
+                if (wTx*y > 0) {
+                    exp_m = exp(-y*wTx);
+                    tmp = exp_m/(1+exp_m);
                 }
                 else {
-                    w[idx] = 0;
+                    exp_m = exp(y*wTx);
+                    tmp = 1/(1+exp_m);
                 }
-                wTx += w[idx]*val;
-            }
 
-            FtrlFloat exp_m, tmp;
+                FtrlFloat kappa = -y*tmp;
 
-            if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m);
+                FtrlFloat g_norm = 0;
+                for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+                    Node x = chunk.nodes[s];
+                    FtrlInt idx = x.idx;
+                    FtrlFloat val = x.val, g = kappa*val, theta=0;
+                    g_norm += g*g;
+                    theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
+                    z[idx] += g-theta*w[idx];
+                    n[idx] += g*g;
+                }
+                //printf("%d:g_norm=%lf\n", ind++, sqrt(g_norm));
             }
-            else {
-                exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m);
-            }
-
-            FtrlFloat kappa = -y*tmp;
-
-            FtrlFloat g_norm = 0;
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val, g = kappa*val, theta=0;
-                g_norm += g*g;
-                theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
-                z[idx] += g-theta*w[idx];
-                n[idx] += g*g;
-            }
-            //printf("%d:g_norm=%lf\n", ind++, sqrt(g_norm));
+            chunk.clear();
         }
-        chunk.clear();
-    }
-    if (param->verbose)
-        fun();
-    if (!test_data->file_name.empty()) {
-    validate();
-    }
-    print_epoch_info();
+        if (param->verbose)
+            fun();
+        if (!test_data->file_name.empty()) {
+            validate();
+        }
+
+        print_epoch_info();
+        if(param->auto_stop) {
+            if(va_loss > best_va_loss){
+                memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
+                cout << endl << "Auto-stop. Use model at" << t-1 <<"th iteration."<<endl;
+                break;
+            }else{
+                memcpy(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
+                best_va_loss = va_loss;
+            }
+        }
     }
 }

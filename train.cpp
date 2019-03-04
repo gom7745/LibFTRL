@@ -54,6 +54,8 @@ string train_help()
     "-p <path>: set path to test set\n"
     "-c <threads>: set number of cores\n"
     "--norm: Apply instance-wise normlization."
+    "--no-auc: disable auc\n"
+    "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -vp)\n"
     );
 }
 
@@ -163,6 +165,14 @@ Option parse_option(int argc, char **argv)
         else if(args[i].compare("--freq") == 0)
         {
             option.param->freq = true;
+        }
+        else if(args[i].compare("--auto-stop") == 0)
+        {
+            option.param->auto_stop = true;
+        }
+        else if(args[i].compare("--no-auc") == 0)
+        {
+            option.param->no_auc = true;
         }
         else
         {

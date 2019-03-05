@@ -55,7 +55,8 @@ string train_help()
     "-c <threads>: set number of cores\n"
     "--norm: Apply instance-wise normlization."
     "--no-auc: disable auc\n"
-    "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -vp)\n"
+	"--in-memory: keep data in memroy\n"
+    "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
 }
 
@@ -174,6 +175,10 @@ Option parse_option(int argc, char **argv)
         {
             option.param->no_auc = true;
         }
+        else if(args[i].compare("--in-memory") == 0)
+        {
+            option.param->in_memory = true;
+        }
         else
         {
             break;
@@ -196,7 +201,7 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
-        data->split_chunks();
+		data->split_chunks();
         cout << "Tr_data: ";
         data->print_data_info();
 

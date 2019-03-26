@@ -47,10 +47,13 @@ void FtrlChunk::read() {
     nodes.resize(nnz);
     nnzs.resize(l+1);
 
-    fread(labels.data(), sizeof(FtrlFloat), l, f_tr);
-    fread(nnzs.data(), sizeof(FtrlInt), l+1, f_tr);
-    fread(R.data(), sizeof(FtrlFloat), l, f_tr);
-    fread(nodes.data(), sizeof(Node), nnz, f_tr);
+    size_t bytes;
+    bytes = fread(labels.data(), sizeof(FtrlFloat), l, f_tr);
+    bytes = fread(nnzs.data(), sizeof(FtrlInt), l+1, f_tr);
+    bytes = fread(R.data(), sizeof(FtrlFloat), l, f_tr);
+    bytes = fread(nodes.data(), sizeof(Node), nnz, f_tr);
+    bytes++;
+
     fclose(f_tr);
 }
 
@@ -187,7 +190,7 @@ void FtrlProblem::save_model(string model_path) {
     FtrlFloat *wa = w.data();
     FtrlFloat *na = n.data();
     FtrlFloat *za = z.data();
-    for (FtrlFloat j = 0; j < data->n; j++, wa++, na++, za++)
+    for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++)
     {
         f_out << "w" << j << " " << *wa << " " <<  *na <<" " << *za << endl;
     }
@@ -201,7 +204,7 @@ FtrlLong FtrlProblem::load_model(string model_path) {
     string dummy;
     FtrlLong nr_feature;
 
-    f_in >> dummy >> dummy >> dummy >> nr_feature;
+    f_in >> dummy >> normlization >> dummy >> nr_feature;
     w.resize(nr_feature);
 
 
@@ -210,6 +213,8 @@ FtrlLong FtrlProblem::load_model(string model_path) {
     {
         f_in >> dummy;
         f_in >> *ptr;
+        f_in >> dummy;
+        f_in >> dummy;
     }
     return nr_feature;
 }
@@ -424,117 +429,6 @@ void FtrlProblem::validate() {
     }
     sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
     va_auc = (sum_pos_rank - 0.5*M*(M+1)) / (M*N);
-}
-
-void FtrlProblem::solve_adagrad() {
-    print_header_info();
-    FtrlInt nr_chunk = data->nr_chunk;
-    FtrlFloat l2 = param->l2, a = param->alpha, b = param->beta;
-    for (t = 0; t < param->nr_pass; t++) {
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
-
-        FtrlChunk& chunk = data->chunks[chunk_id];
-
-        chunk.read();
-
-        for (FtrlInt i = 0; i < chunk.l; i++) {
-
-            FtrlFloat y=chunk.labels[i], wTx=0;
-            FtrlFloat r=param->normalized ? chunk.R[i]:1;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r;
-                wTx += w[idx]*val;
-            }
-
-            FtrlFloat exp_m, tmp;
-
-            if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m);
-            }
-            else {
-                exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m);
-            }
-
-            FtrlFloat kappa = -y*tmp;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r, g = kappa*val+l2*f[idx]*w[idx];
-                n[idx] += g*g;
-                w[idx] -= (a/(b+sqrt(n[idx])))*g;
-            }
-        }
-        chunk.clear();
-    }
-    if (param->verbose)
-        fun();
-    if (!test_data->file_name.empty()) {
-    validate();
-    }
-    print_epoch_info();
-    }
-}
-
-void FtrlProblem::solve_rda() {
-    print_header_info();
-    FtrlInt nr_chunk = data->nr_chunk;
-    FtrlFloat l2 = param->l2, a = param->alpha, b = param->beta;
-    for (t = 0; t < param->nr_pass; t++) {
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
-
-        FtrlChunk& chunk = data->chunks[chunk_id];
-
-        chunk.read();
-
-        for (FtrlInt i = 0; i < chunk.l; i++) {
-
-            FtrlFloat y=chunk.labels[i], wTx=0;
-            FtrlFloat r=param->normalized ? chunk.R[i]:1;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r;
-                wTx += w[idx]*val;
-            }
-
-            FtrlFloat exp_m, tmp;
-
-            if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m);
-            }
-            else {
-                exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m);
-            }
-
-            FtrlFloat kappa = -y*tmp;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r, g = kappa*val;
-                z[idx] += g;
-                w[idx] = -z[idx] / ((b+sqrt(n[idx]))/a+l2*f[idx]);
-                n[idx] += g*g;
-            }
-        }
-        chunk.clear();
-    }
-    if (param->verbose)
-        fun();
-    if (!test_data->file_name.empty()) {
-    validate();
-    }
-    print_epoch_info();
-    }
 }
 
 void FtrlProblem::fun() {

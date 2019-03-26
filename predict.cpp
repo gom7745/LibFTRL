@@ -16,6 +16,7 @@ using namespace std;
 struct Option
 {
     string test_path, model_path, output_path;
+    bool error;
 };
 
 string predict_help()
@@ -30,13 +31,19 @@ Option parse_option(int argc, char **argv)
     for(int i = 0; i < argc; i++)
         args.push_back(string(argv[i]));
 
-    if(argc == 1)
-        throw invalid_argument(predict_help());
-
     Option option;
+    option.error = false;
+    if(argc == 1) {
+        cout << predict_help() << endl;
+        option.error = true;
+        return option;
+    }
 
-    if(argc != 4)
-        throw invalid_argument("cannot parse argument");
+    if(argc != 4) {
+        cout << "cannot parse argument" << endl;
+        option.error = true;
+        return option;
+    }
 
     option.test_path = string(args[1]);
     option.model_path = string(args[2]);
@@ -86,7 +93,7 @@ void predict(string test_path, string model_path, string output_path)
             }
             else {
                 exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m); 
+                local_va_loss += -y*wTx+log(1+exp_m);
             }
             f_out << 1/(1+exp(-wTx)) << "\n";
         }
@@ -99,15 +106,10 @@ void predict(string test_path, string model_path, string output_path)
 int main(int argc, char **argv)
 {
     Option option;
-    try
+    option = parse_option(argc, argv);
+    if(option.error == false)
     {
-        option = parse_option(argc, argv);
+        predict(option.test_path, option.model_path, option.output_path);
     }
-    catch(invalid_argument const &e)
-    {
-        cout << e.what() << endl;
-        return 1;
-    }
-
-    predict(option.test_path, option.model_path, option.output_path);
+    return 0;
 }

@@ -12,6 +12,7 @@ struct Option
     shared_ptr<Parameter> param;
     FtrlInt verbose, solver;
     string data_path, test_path, model_path, warm_model_path;
+    bool error;
 };
 
 string basename(string path)
@@ -67,99 +68,136 @@ Option parse_option(int argc, char **argv)
     for(int i = 0; i < argc; i++)
         args.push_back(string(argv[i]));
 
-    if(argc == 1)
-        throw invalid_argument(train_help());
-
     Option option;
+    option.error = false;
     option.verbose = 1;
     option.param = make_shared<Parameter>();
+
+    if(argc == 1) {
+        cout << train_help() << endl;
+        option.error = true;
+        return option;
+    }
+
     int i = 0;
     for(i = 1; i < argc; i++)
     {
         if(args[i].compare("-s") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("need to specify solver type\
-                                        after -s");
+            if((i+1) >= argc) {
+                cout << "need to specify solver type\
+                                        after -s" << endl;
+                option.error = true;
+            }
             i++;
 
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-s should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-s should be followed by a number" << endl;
+                option.error = true;
+            }
             option.solver = atoi(argv[i]);
         }
         else if(args[i].compare("-l1") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("need to specify l1 regularization\
-                                        coefficient after -l1");
+            if((i+1) >= argc) {
+                cout << "need to specify l1 regularization\
+                                        coefficient after -l1" << endl;
+                option.error = true;
+            }
             i++;
 
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-l1 should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-l1 should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->l1 = atof(argv[i]);
         }
         else if(args[i].compare("-l2") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("need to specify l2\
+            if((i+1) >= argc) {
+                cout << "need to specify l2\
                                         regularization coefficient\
-                                        after -l2");
+                                        after -l2" << endl;
+                option.error = true;
+            }
             i++;
 
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-l2 should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-l2 should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->l2 = atof(argv[i]);
         }
         else if(args[i].compare("-t") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("need to specify max number of\
-                                        iterations after -t");
+            if((i+1) >= argc) {
+                cout << "need to specify max number of\
+                                        iterations after -t" << endl;
+                option.error = true;
+            }
             i++;
 
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-t should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-t should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->nr_pass = atoi(argv[i]);
         }
         else if(args[i].compare("-a") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("missing core numbers after -c");
+            if((i+1) >= argc) {
+                cout << "missing core numbers after -c" << endl;
+                option.error = true;
+            }
             i++;
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-c should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-c should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->alpha = atof(argv[i]);
         }
         else if(args[i].compare("-b") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("missing core numbers after -c");
+            if((i+1) >= argc) {
+                cout << "missing core numbers after -c" << endl;
+                option.error = true;
+            }
             i++;
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-c should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-c should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->beta = atof(argv[i]);
         }
         else if(args[i].compare("-c") == 0)
         {
-            if((i+1) >= argc)
-                throw invalid_argument("missing core numbers after -c");
+            if((i+1) >= argc) {
+                cout << "missing core numbers after -c" << endl;
+                option.error = true;
+            }
             i++;
-            if(!is_numerical(argv[i]))
-                throw invalid_argument("-c should be followed by a number");
+            if(!is_numerical(argv[i])) {
+                cout << "-c should be followed by a number" << endl;
+                option.error = true;
+            }
             option.param->nr_threads = atof(argv[i]);
         }
         else if(args[i].compare("-p") == 0)
         {
-            if(i == argc-1)
-                throw invalid_argument("need to specify path after -p");
+            if(i == argc-1) {
+                cout << "need to specify path after -p" << endl;
+                option.error = true;
+            }
             i++;
 
             option.test_path = string(args[i]);
         }
         else if(args[i].compare("-m") == 0)
         {
-            if(i == argc-1)
-                throw invalid_argument("need to specify warmstart model path after -m");
+            if(i == argc-1) {
+                cout << "need to specify warmstart model path after -m" << endl;
+                option.error = true;
+            }
             i++;
 
             option.warm_model_path = string(args[i]);
@@ -194,8 +232,11 @@ Option parse_option(int argc, char **argv)
         }
     }
 
-    if(i != argc-2 && i != argc-1)
-        throw invalid_argument("cannot parse commmand\n");
+    if(i != argc-2 && i != argc-1) {
+        cout << "cannot parse commmand" << endl;
+        option.error = true;
+        return option;
+    }
     option.data_path = string(args[i++]);
 
     if(i < argc) {
@@ -203,7 +244,8 @@ Option parse_option(int argc, char **argv)
     } else if(i == argc) {
         option.model_path = basename(option.data_path) + ".model";
     } else {
-        throw invalid_argument("cannot parse commmand\n");
+        cout << "cannot parse commmand" << endl;
+        option.error = true;
     }
 
     return option;
@@ -211,9 +253,9 @@ Option parse_option(int argc, char **argv)
 
 int main(int argc, char *argv[])
 {
-    try
+    Option option = parse_option(argc, argv);
+    if(option.error == false)
     {
-        Option option = parse_option(argc, argv);
         omp_set_num_threads(option.param->nr_threads);
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
@@ -234,20 +276,7 @@ int main(int argc, char *argv[])
             cout << "Solver Type: FTRL" << endl;
             prob.solve();
         }
-        else if (option.solver == 2) {
-            cout << "Solver Type: RDA" << endl;
-            prob.solve_rda();
-        }
-        else {
-            cout << "Solver Type: AdaGrad" << endl;
-            prob.solve_adagrad();
-        }
         prob.save_model(option.model_path);
-    }
-    catch (invalid_argument &e)
-    {
-        cerr << e.what() << endl;
-        return 1;
     }
     return 0;
 }

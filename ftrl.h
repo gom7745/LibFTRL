@@ -24,9 +24,10 @@ FtrlLong const chunk_size = 3000000000;
 
 class Node {
 public:
-    FtrlLong idx;
-    FtrlFloat  val;
+    FtrlLong idx = 0;
+    FtrlFloat  val = 0.0f;
     Node(){};
+    ~Node(){};
     Node(FtrlLong idx, FtrlFloat val): idx(idx), val(val){};
 };
 
@@ -37,6 +38,7 @@ public:
     FtrlInt nr_pass, nr_threads;
     bool normalized, verbose, freq, auto_stop, no_auc, in_memory;
     Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false),verbose(true), freq(true), auto_stop(false), no_auc(false), in_memory(false), nr_threads(1){};
+    ~Parameter(){};
 };
 
 class FtrlChunk {
@@ -56,6 +58,7 @@ public:
     void clear();
 
     FtrlChunk(string data_name, FtrlInt chunk_id);
+    ~FtrlChunk(){};
 };
 
 class FtrlData {
@@ -67,6 +70,7 @@ public:
     vector<FtrlChunk> chunks;
 
     FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0) {};
+    ~FtrlData(){};
     void print_data_info();
     void split_chunks();
     void write_meta();
@@ -80,6 +84,7 @@ public:
     FtrlProblem() {};
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data, shared_ptr<Parameter> &param)
         :data(data), test_data(test_data), param(param) {};
+    ~FtrlProblem(){};
 
 
     vector<FtrlFloat> w, z, n, f;
@@ -91,8 +96,6 @@ public:
 
     void initialize(bool norm, string warm_model_path);
     void solve();
-    void solve_adagrad();
-    void solve_rda();
     void print_epoch_info();
     void print_header_info();
     void save_model(string model_path);

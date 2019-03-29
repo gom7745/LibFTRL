@@ -1,3 +1,6 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2019-2019. All rights reserved.
+ */
 #include <cstring>
 #include <fstream>
 #include <iostream>
@@ -13,28 +16,23 @@
 
 using namespace std;
 
-struct Option
-{
-    string test_path, model_path, output_path;
+struct Option {
+    string testPath, modelPath, outputPath;
     bool error;
+
+    Option():error(false) {};
 };
 
-string predict_help()
-{
+string predictHelp() {
     return string(
 "usage: predict test_file model_file output_file\n");
 }
 
-Option parse_option(int argc, char **argv)
-{
-    vector<string> args;
-    for(int i = 0; i < argc; i++)
-        args.push_back(string(argv[i]));
-
+Option ParseOption(FtrlInt argc, vector<string>& args) {
     Option option;
     option.error = false;
     if(argc == 1) {
-        cout << predict_help() << endl;
+        cout << predictHelp() << endl;
         option.error = true;
         return option;
     }
@@ -45,71 +43,71 @@ Option parse_option(int argc, char **argv)
         return option;
     }
 
-    option.test_path = string(args[1]);
-    option.model_path = string(args[2]);
-    option.output_path = string(args[3]);
+    option.testPath = string(args[1]);
+    option.modelPath = string(args[2]);
+    option.outputPath = string(args[3]);
 
     return option;
 }
 
-void predict(string test_path, string model_path, string output_path)
-{
+void predict(string testPath, string modelPath, string outputPath) {
     FtrlProblem prob;
-    FtrlLong n = prob.load_model(model_path);
-    ofstream f_out(output_path);
+    FtrlLong n = prob.LoadModel(modelPath);
+    ofstream fOut(outputPath);
 
-    shared_ptr<FtrlData> test_data = make_shared<FtrlData>(test_path);
-    test_data->split_chunks();
+    shared_ptr<FtrlData> testData = make_shared<FtrlData>(testPath);
+    testData->SplitChunks();
     cout << "Te_data: ";
-    test_data->print_data_info();
+    testData->PrFtrlIntDataInfo();
 
-    FtrlInt nr_chunk = test_data->nr_chunk;
-    FtrlFloat local_va_loss = 0.0;
+    FtrlInt nrChunk = testData->nrChunk;
+    FtrlFloat localVaLoss = 0.0;
 
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
+    for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
 
-        FtrlChunk chunk = test_data->chunks[chunk_id];
-        chunk.read();
+        FtrlChunk chunk = testData->chunks[chunkId];
+        chunk.Read();
 
         for (FtrlInt i = 0; i < chunk.l; i++) {
 
-            FtrlFloat y = chunk.labels[i], wTx = 0;
+            FtrlFloat y, wTx;
+            y = chunk.labels[i], wTx = 0;
 
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
                 Node x = chunk.nodes[s];
                 FtrlInt idx = x.idx;
                 if (idx > n) {
                     continue;
                 }
                 FtrlFloat val = x.val;
-                wTx += prob.w[idx]*val;
+                wTx += prob.w[idx] * val;
             }
 
-            FtrlFloat exp_m;
+            FtrlFloat expM;
 
             if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                local_va_loss += log(1+exp_m);
+                expM = exp(-y * wTx);
+                localVaLoss += log(1 + expM);
             }
             else {
-                exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m);
+                expM = exp(y * wTx);
+                localVaLoss += -y * wTx + log(1 + expM);
             }
-            f_out << 1/(1+exp(-wTx)) << "\n";
+            fOut << 1 / (1 + exp(-wTx)) << "\n";
         }
-        chunk.clear();
+        chunk.Clear();
     }
-    local_va_loss = local_va_loss / test_data->l;
-    cout << "logloss = " << fixed << setprecision(5) << local_va_loss << endl;
+    localVaLoss = localVaLoss / testData->l;
+    cout << "logloss = " << fixed << setprecision(5) << localVaLoss << endl;
 }
 
-int main(int argc, char **argv)
-{
-    Option option;
-    option = parse_option(argc, argv);
-    if(option.error == false)
-    {
-        predict(option.test_path, option.model_path, option.output_path);
+int main(int argc, char **argv) {
+    vector<string> args;
+    for(FtrlInt i = 0; i < argc; i++)
+        args.push_back(string(argv[i]));
+    Option option = ParseOption(argc, args);
+    if(option.error == false) {
+        predict(option.testPath, option.modelPath, option.outputPath);
     }
     return 0;
 }

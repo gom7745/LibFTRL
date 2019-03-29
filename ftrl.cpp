@@ -1,63 +1,68 @@
+/*
+ * Copyright (c) Huawei Technologies Co., Ltd. 2019-2019. All rights reserved.
+ */
 #include "ftrl.h"
 
+FtrlInt const width3 = 3;
+FtrlInt const width4 = 4;
+FtrlInt const width5 = 5;
+FtrlInt const width13 = 13;
 
-FtrlChunk::FtrlChunk(string data_name, FtrlInt id) {
-    l = 0, nnz = 0;
-    chunk_id = id;
-    file_name = data_name+".bin."+to_string(id);
+FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id) {
+    fileName = dataName + ".bin." + to_string(id);
 }
 
-struct chunk_meta {
+struct chunkMeta {
     FtrlLong l, nnz;
-    FtrlInt chunk_id;
+    FtrlInt chunkId;
 };
 
-void FtrlChunk::write() {
-    FILE *f_bin = fopen(file_name.c_str(), "wb");
-    if (f_bin == nullptr)
+void FtrlChunk::Write() {
+    FILE* fBin = fopen(fileName.c_str(), "wb");
+    if (fBin == nullptr)
         cout << "Error" << endl;
 
-    chunk_meta meta;
+    chunkMeta meta;
     meta.l = l;
     meta.nnz = nnz;
-    meta.chunk_id = chunk_id;
+    meta.chunkId = chunkId;
 
-    fwrite(reinterpret_cast<char*>(&meta), sizeof(chunk_meta), 1, f_bin);
-    fwrite(labels.data(), sizeof(FtrlFloat), l, f_bin);
-    fwrite(nnzs.data(), sizeof(FtrlInt), l+1, f_bin);
-    fwrite(R.data(), sizeof(FtrlFloat), l, f_bin);
-    fwrite(nodes.data(), sizeof(Node), nnz, f_bin);
-    fclose(f_bin);
+    fwrite(reinterpret_cast<char*>(&meta), sizeof(chunkMeta), 1, fBin);
+    fwrite(labels.data(), sizeof(FtrlFloat), l, fBin);
+    fwrite(nnzs.data(), sizeof(FtrlInt), l + 1, fBin);
+    fwrite(R.data(), sizeof(FtrlFloat), l, fBin);
+    fwrite(nodes.data(), sizeof(Node), nnz, fBin);
+    fclose(fBin);
 }
 
-void FtrlChunk::read() {
-    FILE *f_tr = fopen(file_name.c_str(), "rb");
-    if (f_tr == nullptr)
+void FtrlChunk::Read() {
+    FILE* fTr = fopen(fileName.c_str(), "rb");
+    if (fTr == nullptr)
         cout << "Error" << endl;
 
-    chunk_meta meta;
+    chunkMeta meta;
 
-    fread(reinterpret_cast<char *>(&meta), sizeof(chunk_meta), 1, f_tr);
+    size_t bytes;
+    bytes = fread(reinterpret_cast<char*>(&meta), sizeof(chunkMeta), 1, fTr);
     l = meta.l;
     nnz = meta.nnz;
-    chunk_id = meta.chunk_id;
+    chunkId = meta.chunkId;
 
     labels.resize(l);
     R.resize(l);
     nodes.resize(nnz);
-    nnzs.resize(l+1);
+    nnzs.resize(l + 1);
 
-    size_t bytes;
-    bytes = fread(labels.data(), sizeof(FtrlFloat), l, f_tr);
-    bytes = fread(nnzs.data(), sizeof(FtrlInt), l+1, f_tr);
-    bytes = fread(R.data(), sizeof(FtrlFloat), l, f_tr);
-    bytes = fread(nodes.data(), sizeof(Node), nnz, f_tr);
+    bytes = fread(labels.data(), sizeof(FtrlFloat), l, fTr);
+    bytes = fread(nnzs.data(), sizeof(FtrlInt), l + 1, fTr);
+    bytes = fread(R.data(), sizeof(FtrlFloat), l, fTr);
+    bytes = fread(nodes.data(), sizeof(Node), nnz, fTr);
     bytes++;
 
-    fclose(f_tr);
+    fclose(fTr);
 }
 
-void FtrlChunk::clear() {
+void FtrlChunk::Clear() {
     labels.clear();
     nodes.clear();
     R.clear();
@@ -69,48 +74,51 @@ inline bool exists(const string& name) {
     return f.good();
 }
 
-struct disk_problem_meta {
+struct diskProblemMeta {
     FtrlLong l, n;
-    FtrlInt nr_chunk;
+    FtrlInt nrChunk;
 };
 
 void FtrlData::write_meta() {
-    string meta_name = file_name + ".meta";
-    FILE *f_meta = fopen(meta_name.c_str(), "wb");
+    string metaName = fileName + ".meta";
+    FILE* f_meta = fopen(metaName.c_str(), "wb");
     if (f_meta == nullptr)
         cout << "Error" << endl;
 
-    disk_problem_meta meta;
+    diskProblemMeta meta;
     meta.l = l;
     meta.n = n;
-    meta.nr_chunk = nr_chunk;
+    meta.nrChunk = nrChunk;
 
-    fwrite(reinterpret_cast<char*>(&meta), sizeof(disk_problem_meta), 1, f_meta);
+    fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
 }
 
-void FtrlData::split_chunks() {
-    string meta_name = file_name + ".meta";
-    if(exists(meta_name)) {
-        FILE *f_meta = fopen(meta_name.c_str(), "rb");
-        disk_problem_meta meta;
+void FtrlData::SplitChunks() {
+    string metaName = fileName  +  ".meta";
+    if(exists(metaName)) {
+        FILE* f_meta = fopen(metaName.c_str(), "rb");
+        diskProblemMeta meta;
         if (f_meta == nullptr)
             cout << "Error" << endl;
-        fread(reinterpret_cast<char*>(&meta), sizeof(disk_problem_meta), 1, f_meta);
+        size_t bytes;
+        bytes = fread(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
+        bytes++;
         l = meta.l;
         n = meta.n;
-        nr_chunk = meta.nr_chunk;
-        for(FtrlInt chunk_id=0; chunk_id < nr_chunk; chunk_id++) {
-            FtrlChunk chunk(file_name, chunk_id);
+        nrChunk = meta.nrChunk;
+        for(FtrlInt chunkId = 0; chunkId<nrChunk; chunkId++) {
+            FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);
         }
     }
     else {
         string line;
-        ifstream fs(file_name);
+        ifstream fs(fileName);
 
-        FtrlInt i = 0, chunk_id = 0;
-        FtrlChunk chunk(file_name, chunk_id);
-        nr_chunk++;
+        FtrlInt i = 0;
+        FtrlInt chunkId = 0;
+        FtrlChunk chunk(fileName, chunkId);
+        nrChunk++;
 
         chunk.nnzs.push_back(i);
 
@@ -122,7 +130,7 @@ void FtrlData::split_chunks() {
             chunk.l++;
 
             iss >> label;
-            label = (label>0)? 1:-1;
+            label = (label > 0) ? 1 : -1;
             chunk.labels.push_back(label);
 
             FtrlInt idx = 0;
@@ -134,453 +142,365 @@ void FtrlData::split_chunks() {
             while (iss >> idx >> dummy >> val) {
                 i++;
                 max_nnz++;
-                if (n < idx+1) {
-                    n = idx+1;
+                if (n < idx + 1) {
+                    n = idx + 1;
                 }
                 chunk.nodes.push_back(Node(idx, val));
-                r += val*val;
+                r += val * val;
             }
             chunk.nnzs.push_back(i);
-            chunk.R.push_back(1/sqrt(r));
-            if (i > chunk_size) {
+            chunk.R.push_back(1 / sqrt(r));
+            if (i > CHUNK_SIZE) {
 
                 chunk.nnz = i;
-                chunk.write();
-                chunk.clear();
+                chunk.Write();
+                chunk.Clear();
 
                 chunks.push_back(chunk);
 
                 i = 0;
-                chunk_id++;
-                chunk = FtrlChunk(file_name, chunk_id);
+                chunkId++;
+                chunk = FtrlChunk(fileName, chunkId);
                 chunk.nnzs.push_back(i);
-                nr_chunk++;
+                nrChunk++;
             }
         }
 
         chunk.nnz = i;
-        chunk.write();
-        chunk.clear();
+        chunk.Write();
+        chunk.Clear();
 
         chunks.push_back(chunk);
-        FILE *f_meta = fopen(meta_name.c_str(), "wb");
+        FILE* f_meta = fopen(metaName.c_str(), "wb");
         if (f_meta == nullptr)
             cout << "Error" << endl;
-        disk_problem_meta meta;
+        diskProblemMeta meta;
         meta.l = l;
         meta.n = n;
-        meta.nr_chunk = nr_chunk;
-        fwrite(reinterpret_cast<char*>(&meta), sizeof(disk_problem_meta), 1, f_meta);
+        meta.nrChunk = nrChunk;
+        fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
+        fflush(f_meta);
     }
 }
 
-void FtrlData::print_data_info() {
-    cout << "Data: " << file_name << "\t";
+void FtrlData::PrFtrlIntDataInfo() {
+    cout << "Data: " << fileName << "\t";
     cout << "#features: " << n << "\t";
     cout << "#instances: " << l << "\t";
-    cout << "#chunks " << nr_chunk << "\t";
+    cout << "#chunks " << nrChunk << "\t";
     cout << endl;
 }
 
-void FtrlProblem::save_model(string model_path) {
-    ofstream f_out(model_path);
+void FtrlProblem::SaveModel(string modelPath) {
+    ofstream f_out(modelPath);
     f_out << "norm " << param->normalized << endl;
     f_out << "n " << data->n << endl;
 
-    FtrlFloat *wa = w.data();
-    FtrlFloat *na = n.data();
-    FtrlFloat *za = z.data();
-    for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++)
-    {
+    FtrlFloat* wa = w.data();
+    FtrlFloat* na = n.data();
+    FtrlFloat* za = z.data();
+    for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++) {
         f_out << "w" << j << " " << *wa << " " <<  *na <<" " << *za << endl;
     }
     f_out.close();
 }
 
-FtrlLong FtrlProblem::load_model(string model_path) {
+FtrlLong FtrlProblem::LoadModel(string modelPath) {
 
-    ifstream f_in(model_path);
+    ifstream f_in(modelPath);
 
     string dummy;
     FtrlLong nr_feature;
 
     f_in >> dummy >> normlization >> dummy >> nr_feature;
     w.resize(nr_feature);
+    z.resize(nr_feature);
+    n.resize(nr_feature);
 
-
-    FtrlFloat *ptr = w.data();
-    for(FtrlLong j = 0; j < nr_feature; j++, ptr++)
-    {
+    FtrlFloat* wptr = w.data();
+    FtrlFloat* nptr = n.data();
+    FtrlFloat* zptr = z.data();
+    for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++) {
         f_in >> dummy;
-        f_in >> *ptr;
-        f_in >> dummy;
-        f_in >> dummy;
+        f_in >> *wptr >> *nptr >> *zptr;
     }
     return nr_feature;
 }
 
-void FtrlProblem::initialize(bool norm, string warm_model_path) {
+void FtrlProblem::Initialize(bool norm, string warmModelPath) {
     f.resize(data->n, 0);
-    if(warm_model_path.empty()) {
+    if(warmModelPath.empty()) {
         feats = data->n;
         w.resize(data->n, 0);
         z.resize(data->n, 0);
         n.resize(data->n, 0);
     }
     else {
-        ifstream f_in(warm_model_path);
-        string dummy;
-        FtrlLong nr_feature;
-        f_in >> dummy >> dummy >> dummy >> nr_feature;
-        if(nr_feature >= data->n) {
-            feats = nr_feature;
-            w.resize(nr_feature, 0);
-            z.resize(nr_feature, 0);
-            n.resize(nr_feature, 0);
-            FtrlFloat *wptr = w.data();
-            FtrlFloat *nptr = n.data();
-            FtrlFloat *zptr = z.data();
-
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
-            {
-                f_in >> dummy;
-                f_in >> *wptr >> *nptr >> *zptr;
-            }
+        FtrlLong nr_feature = LoadModel(warmModelPath);
+        if(nr_feature < data->n) {
+            w.resize(data->n, 0);
+            z.resize(data->n, 0);
+            n.resize(data->n, 0);
         }
-        else {
-            feats = data->n;
-            w.resize(data->n);
-            z.resize(data->n);
-            n.resize(data->n);
-            FtrlFloat *wptr = w.data();
-            FtrlFloat *nptr = n.data();
-            FtrlFloat *zptr = z.data();
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
-            {
-                if(j < nr_feature) {
-                    f_in >> dummy;
-                    f_in >> *wptr >> *nptr >> *zptr;
-                }
-                else {
-                    *wptr = 0; *nptr = 0; *zptr = 0;
-                }
-            }
-        }
+        nr_feature = data->n;
     }
     t = 0;
-    tr_loss = 0.0, va_loss = 0.0, fun_val = 0.0, gnorm = 0.0;
-    FtrlInt nr_chunk = data->nr_chunk;
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
+    trLoss = 0.0, vaLoss = 0.0, funVal = 0.0, gnorm = 0.0;
+    FtrlInt nrChunk = data->nrChunk;
+    for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
 
-        FtrlChunk& chunk = data->chunks[chunk_id];
+        FtrlChunk& chunk = data->chunks[chunkId];
 
-        chunk.read();
+        chunk.Read();
 
         for (FtrlInt i = 0; i < chunk.l; i++) {
 
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
                 Node x = chunk.nodes[s];
                 FtrlInt idx = x.idx;
                 f[idx]++;
             }
         }
-        if(!param->in_memory)
-            chunk.clear();
+        if(!param->inMemory)
+            chunk.Clear();
     }
     for (FtrlInt j = 0; j < data->n; j++) {
         if (param->freq)
-            f[j]  = 1;
+            f[j] = 1;
         else
-            f[j]  = 1/f[j];
+            f[j] = 1 / f[j];
     }
-    start_time = omp_get_wtime();
+    startTime = omp_get_wtime();
 }
 
-void FtrlProblem::print_header_info() {
+void FtrlProblem::PrFtrlIntHeaderInfo() {
     cout.width(4);
     cout << "iter";
     if (param->verbose) {
-    cout.width(13);
-    cout << "fun_val";
-    cout.width(13);
+    cout.width(width13);
+    cout << "funVal";
+    cout.width(width13);
     cout << "reg";
-    cout.width(13);
+    cout.width(width13);
     cout << "|grad|";
-    cout.width(13);
+    cout.width(width13);
     cout << "tr_logloss";
     }
-    if(!test_data->file_name.empty()) {
-        cout.width(13);
+    if(!testData->fileName.empty()) {
+        cout.width(width13);
         cout << "va_logloss";
-        cout.width(13);
-        cout << "va_auc";
+        cout.width(width13);
+        cout << "vaAuc";
     }
-    cout.width(13);
+    cout.width(width13);
     cout << "time";
     cout << endl;
 }
-void FtrlProblem::print_epoch_info() {
-    cout.width(4);
-    cout << t+1;
+void FtrlProblem::PrFtrlIntEpochInfo() {
+    cout.width(width4);
+    cout << t + 1;
     if (param->verbose) {
-        cout.width(13);
-        cout << scientific << setprecision(3) << fun_val;
-        cout.width(13);
-        cout << scientific << setprecision(3) << reg;
-        cout.width(13);
-        cout << scientific << setprecision(3) << gnorm;
-        cout.width(13);
-        cout << fixed << setprecision(5) << tr_loss;
+        cout.width(width13);
+        cout << scientific << setprecision(width3) << funVal;
+        cout.width(width13);
+        cout << scientific << setprecision(width3) << reg;
+        cout.width(width13);
+        cout << scientific << setprecision(width3) << gnorm;
+        cout.width(width13);
+        cout << fixed << setprecision(width5) << trLoss;
     }
-    if (!test_data->file_name.empty()) {
-        cout.width(13);
-        cout << fixed << setprecision(5) << va_loss;
-        cout.width(13);
-        cout << fixed << setprecision(5) << va_auc;
+    if (!testData->fileName.empty()) {
+        cout.width(width13);
+        cout << fixed << setprecision(width5) << vaLoss;
+        cout.width(width13);
+        cout << fixed << setprecision(width5) << vaAuc;
     }
-    cout.width(13);
-    cout << fixed << setprecision(5) << omp_get_wtime() - start_time;
+    cout.width(width13);
+    cout << fixed << setprecision(width5) << omp_get_wtime() - startTime;
     cout << endl;
 }
 
-
-void FtrlProblem::validate() {
-    FtrlInt nr_chunk = test_data->nr_chunk, global_i = 0;
-    FtrlFloat local_va_loss = 0.0;
-    vector<FtrlFloat> va_labels(test_data->l, 0), va_scores(test_data->l, 0), va_orders(test_data->l, 0);
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
-
-        FtrlChunk& chunk = test_data->chunks[chunk_id];
-        chunk.read();
-
-#pragma omp parallel for schedule(static) reduction(+: local_va_loss)
-        for (FtrlInt i = 0; i < chunk.l; i++) {
-
-            FtrlFloat y = chunk.labels[i], wTx = 0;
-            FtrlFloat r=param->normalized ? chunk.R[i]:1;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                if (idx > data->n) {
-                    continue;
-                }
-                FtrlFloat val = x.val*r;
-                wTx += w[idx]*val;
-            }
-            va_scores[global_i+i] = wTx;
-            va_orders[global_i+i] = global_i+i;
-            va_labels[global_i+i] = y;
-
-            FtrlFloat exp_m;
-
-            if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                local_va_loss += log(1+exp_m);
+FtrlFloat FtrlProblem::wTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate=false, FtrlFloat l1 = 0, FtrlFloat l2 = 0, FtrlFloat a = 0, FtrlFloat b = 0) {
+    FtrlFloat p = 0;
+    for (FtrlInt s = begin; s < end; s++) {
+        Node& x = chunk.nodes[s];
+        FtrlInt idx = x.idx;
+        if (idx > data->n) {
+            continue;
+        }
+        FtrlFloat val = x.val * r;
+        if(doUpdate) {
+            FtrlFloat zi, ni;
+            zi = z[idx], ni = n[idx];
+            if (abs(zi) > l1 * f[idx]) {
+                w[idx] = -(zi - (2 * (zi > 0) - 1) * l1 * f[idx]) / ((b + sqrt(ni)) / a + l2 * f[idx]);
             }
             else {
-                exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m);
+                w[idx] = 0;
             }
         }
-        global_i += chunk.l;
-        chunk.clear();
+        p += w[idx] * val;
     }
-    va_loss = local_va_loss / test_data->l;
-
-    if(param->no_auc) {
-        va_auc = 0;
-        return;
-    }
-    sort(va_orders.begin(), va_orders.end(), [&va_scores] (FtrlInt i, FtrlInt j) {return va_scores[i] < va_scores[j];});
-
-    FtrlFloat prev_score = va_scores[0];
-    FtrlLong M = 0, N = 0;
-    FtrlLong begin = 0, stuck_pos = 0, stuck_neg = 0;
-    FtrlFloat sum_pos_rank = 0;
-
-    for (FtrlInt i = 0; i < test_data->l; i++)
-    {
-        FtrlInt sorted_i = va_orders[i];
-
-        FtrlFloat score = va_scores[sorted_i];
-
-        if (score != prev_score)
-        {
-            sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
-            prev_score = score;
-            begin = i;
-            stuck_neg = 0;
-            stuck_pos = 0;
-        }
-
-        FtrlFloat label = va_labels[sorted_i];
-
-        if (label > 0)
-        {
-            M++;
-            stuck_pos ++;
-        }
-        else
-        {
-            N++;
-            stuck_neg ++;
-        }
-    }
-    sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
-    va_auc = (sum_pos_rank - 0.5*M*(M+1)) / (M*N);
+    return p;
 }
 
-void FtrlProblem::fun() {
-    FtrlFloat l1 = param->l1, l2 = param->l2;
-    vector<FtrlFloat> grad(data->n, 0);
-    FtrlInt nr_chunk = data->nr_chunk;
-    fun_val = 0.0, tr_loss = 0.0, gnorm = 0.0, reg = 0.0;
-    for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
+FtrlFloat FtrlProblem::calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders) {
+    sort(vaOrders.begin(), vaOrders.end(), [&vaScores] (FtrlInt i, FtrlInt j) {return vaScores[i] < vaScores[j];});
 
-        FtrlChunk& chunk = data->chunks[chunk_id];
+    FtrlFloat prev_score = vaScores[0];
+    FtrlLong aucM, aucN, begin, stuckPos, stuckNeg;
+    aucM = 0, aucN = 0, begin = 0, stuckPos = 0, stuckNeg = 0;
+    FtrlFloat sumPosRank = 0;
 
-        if(!param->in_memory)
-            chunk.read();
+    for (FtrlInt i = 0; i < currentData->l; i++) {
+        FtrlInt sortedI = vaOrders[i];
 
-        FtrlFloat local_tr_loss = 0.0;
+        FtrlFloat score = vaScores[sortedI];
 
-#pragma omp parallel for schedule(guided) reduction(+: local_tr_loss)
-        for (FtrlInt i = 0; i < chunk.l; i++) {
+        if (score !=  prev_score) {
+            sumPosRank += stuckPos * (begin + begin - 1 + stuckPos + stuckNeg) * 0.5;
+            prev_score = score;
+            begin = i;
+            stuckNeg = 0;
+            stuckPos = 0;
+        }
 
-            FtrlFloat y=chunk.labels[i], wTx=0;
-            FtrlFloat r=param->normalized ? chunk.R[i]:1;
+        FtrlFloat label = vaLabels[sortedI];
 
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r;
-                wTx += w[idx]*val;
+        if (label > 0) {
+            aucM++;
+            stuckPos++;
+        }
+        else {
+            aucN++;
+            stuckNeg++;
+        }
+    }
+    sumPosRank += stuckPos * (begin + begin - 1 + stuckPos + stuckNeg) * 0.5;
+    FtrlFloat auc = (sumPosRank - 0.5 * aucM * (aucM + 1)) / (aucM * aucN);
+    return auc;
+}
+
+FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad) {
+    FtrlFloat l1 = param->l1;
+    FtrlFloat l2 = param->l2;
+    FtrlFloat a = param->alpha;
+    FtrlFloat b = param->beta;
+    FtrlFloat loss = 0;
+    FtrlInt nrChunk, globalI;
+    nrChunk = currentData->nrChunk, globalI = 0;
+    vector<FtrlFloat> vaLabels(currentData->l, 0), vaScores(currentData->l, 0), vaOrders(currentData->l, 0);
+    vector<FtrlInt> outerOrder(nrChunk);
+    iota(outerOrder.begin(), outerOrder.end(), 0);
+    random_shuffle(outerOrder.begin(),outerOrder.end());
+    for (FtrlInt chunkId:outerOrder) {
+        FtrlChunk& chunk = currentData->chunks[chunkId];
+        chunk.Read();
+        vector<FtrlInt> innerOrder(chunk.l);
+        iota(innerOrder.begin(), innerOrder.end(), 0);
+        random_shuffle(innerOrder.begin(), innerOrder.end());
+        FtrlFloat localLoss = 0.0;
+#pragma omp parallel for schedule(static) reduction( + : localLoss)
+        for (FtrlInt ii = 0; ii < chunk.l; ii++) {
+            FtrlInt i = innerOrder[ii];
+            FtrlFloat y, p;
+            FtrlFloat r = param->normalized ? chunk.R[i] : 1;
+            y = chunk.labels[i], p = wTx(chunk, chunk.nnzs[i], chunk.nnzs[i + 1], r, doUpdate, l1, l2, a, b);
+
+            if(doAuc) {
+                vaScores[globalI + i] = p;
+                vaOrders[globalI + i] = globalI + i;
+                vaLabels[globalI + i] = y;
             }
 
-            FtrlFloat exp_m, tmp;
-
-            if (wTx*y > 0) {
-                exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m);
-                local_tr_loss += log(1+exp_m);
+            FtrlFloat expM;
+            if (p * y > 0) {
+                expM = exp(-y * p);
+                localLoss += log(1 + expM);
             }
             else {
-                exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m);
-                local_tr_loss += -y*wTx+log(1+exp_m);
+                expM = exp(y * p);
+                localLoss += -y * p + log(1 + expM);
             }
 
-            FtrlFloat kappa = -y*tmp;
+            bool doGrad = grad.size() > 0;
+            if(!doGrad && !doUpdate)
+                continue;
+            FtrlFloat tmp = (p * y > 0) ? expM / (1 + expM) :  1 / (1 + expM);
+            FtrlFloat kappa = -y * tmp;
 
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                Node x = chunk.nodes[s];
+            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
+                Node& x = chunk.nodes[s];
                 FtrlInt idx = x.idx;
-                FtrlFloat val = x.val*r, g = kappa*val+l2*f[idx]*w[idx];
-                grad[idx] += g;
+                FtrlFloat val, g, theta;
+                val = x.val * r, g = kappa * val, theta = 0;
+                theta = 1 / a * (sqrt(n[idx] + g * g) - sqrt(n[idx]));
+                z[idx] += g - theta * w[idx];
+                n[idx] += g * g;
+                if(doGrad) {
+                    g += l2 * f[idx] * w[idx];
+                    grad[idx] += g;
+                }
             }
         }
-        tr_loss += local_tr_loss;
-        if(!param->in_memory)
-            chunk.clear();
+        globalI += chunk.l;
+        chunk.Clear();
+        loss += localLoss;
     }
+
+    if(doAuc) {
+        auc = calAuc(currentData, vaLabels, vaScores, vaOrders);
+    }
+
+    return loss / currentData->l;
+}
+
+void FtrlProblem::Validate() {
+    vector<FtrlFloat> grad;
+    vaLoss = oneEpoch(testData, false, true, vaAuc, grad);
+}
+
+void FtrlProblem::Fun() {
+    FtrlFloat l1 = param->l1, l2 = param->l2;
+    vector<FtrlFloat> grad(data->n, 0);
+    funVal = 0.0,  gnorm = 0.0, reg = 0.0;
+    trLoss = oneEpoch(data, false, false, vaAuc, grad);
     for (FtrlInt j = 0; j < data->n; j++) {
-        gnorm += grad[j]*grad[j];
-        reg += (l1*abs(w[j]) + 0.5*l2*w[j]*w[j]);
+        gnorm += grad[j] * grad[j];
+        reg += (l1 * abs(w[j])  +  0.5 * l2 * w[j] * w[j]);
     }
-    fun_val = tr_loss + reg;
-    tr_loss /= data->l;
+    funVal = trLoss * data->l + reg;
     gnorm = sqrt(gnorm);
 }
 
-void FtrlProblem::solve() {
-    print_header_info();
-    FtrlInt nr_chunk = data->nr_chunk;
-    FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
-    FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
+void FtrlProblem::Solve() {
+    PrFtrlIntHeaderInfo();
+    FtrlFloat bestVaLoss = numeric_limits<FtrlFloat>::max();
     vector<FtrlFloat> prev_w(data->n, 0);
     vector<FtrlFloat> prev_n(data->n, 0);
     vector<FtrlFloat> prev_z(data->n, 0);
 
-    for (t = 0; t < param->nr_pass; t++) {
-        vector<FtrlInt> outer_order(nr_chunk);
-        iota(outer_order.begin(), outer_order.end(), 0);
-        random_shuffle(outer_order.begin(),outer_order.end());
-        for (auto chunk_id:outer_order) {
-            FtrlChunk &chunk = data->chunks[chunk_id];
-            if(!param->in_memory)
-                chunk.read();
-            vector<FtrlInt> inner_oder(chunk.l);
-            iota(inner_oder.begin(), inner_oder.end(),0);
-            random_shuffle(inner_oder.begin(), inner_oder.end());
-
-#pragma omp parallel for schedule(guided)
-            for (FtrlInt ii = 0; ii < chunk.l; ii++) {
-                FtrlInt i = inner_oder[ii];
-                FtrlFloat y=chunk.labels[i], wTx=0;
-                FtrlFloat r=param->normalized ? chunk.R[i]:1;
-
-                for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                    Node x = chunk.nodes[s];
-                    FtrlInt idx = x.idx;
-                    FtrlFloat val = x.val*r, zi = z[idx], ni = n[idx];
-
-                    if (abs(zi) > l1*f[idx]) {
-                        w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
-                    }
-                    else {
-                        w[idx] = 0;
-                    }
-                    wTx += w[idx]*val;
-                }
-
-                FtrlFloat exp_m, tmp;
-
-                if (wTx*y > 0) {
-                    exp_m = exp(-y*wTx);
-                    tmp = exp_m/(1+exp_m);
-                }
-                else {
-                    exp_m = exp(y*wTx);
-                    tmp = 1/(1+exp_m);
-                }
-
-                FtrlFloat kappa = -y*tmp;
-
-                FtrlFloat g_norm = 0;
-                for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
-                    Node x = chunk.nodes[s];
-                    FtrlInt idx = x.idx;
-                    FtrlFloat val = x.val*r, g = kappa*val, theta=0;
-                    g_norm += g*g;
-                    theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
-                    z[idx] += g-theta*w[idx];
-                    n[idx] += g*g;
-                }
-                //printf("%d:g_norm=%lf\n", ind++, sqrt(g_norm));
-            }
-            if(!param->in_memory)
-                chunk.clear();
-        }
+    vector<FtrlFloat> grad;
+    for (t = 0; t < param->nrPass; t++) {
+        trLoss = oneEpoch(data, true, false, vaAuc, grad);
         if (param->verbose)
-            fun();
-        if (!test_data->file_name.empty()) {
-            validate();
-        }
+            Fun();
+        if (!testData->fileName.empty())
+            Validate();
 
-        print_epoch_info();
-        if(param->auto_stop) {
-            if(va_loss > best_va_loss){
+        PrFtrlIntEpochInfo();
+        if(param->autoStop) {
+            if(vaLoss > bestVaLoss){
                 memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
                 memcpy(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
                 memcpy(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));
                 cout << "Auto-stop. Use model at" << t <<"th iteration."<<endl;
                 break;
-            }else{
+            } else {
                 memcpy(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
                 memcpy(prev_n.data(), n.data(), data->n * sizeof(FtrlFloat));
                 memcpy(prev_z.data(), z.data(), data->n * sizeof(FtrlFloat));
-                best_va_loss = va_loss;
+                bestVaLoss = vaLoss;
             }
         }
     }

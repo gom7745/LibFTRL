@@ -24,10 +24,10 @@ using FtrlLong = long long;
 using FtrlInt = long;
 
 FtrlLong const CHUNK_SIZE = 3000000000;
-extern FtrlInt const width3;
-extern FtrlInt const width4;
-extern FtrlInt const width5;
-extern FtrlInt const width13;
+extern FtrlInt const WIDTH3;
+extern FtrlInt const WIDTH4;
+extern FtrlInt const WIDTH5;
+extern FtrlInt const WIDTH13;
 
 class Node {
 public:
@@ -78,7 +78,7 @@ public:
     ~FtrlData(){};
     void PrFtrlIntDataInfo();
     void SplitChunks();
-    void write_meta();
+    void WriteMeta();
 };
 
 class FtrlProblem {
@@ -108,8 +108,8 @@ public:
     void Fun();
     void Validate();
 private:
-    FtrlFloat wTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate, FtrlFloat l1, FtrlFloat l2, FtrlFloat a, FtrlFloat b);
-    FtrlFloat calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders);
-    FtrlFloat oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad);
+    FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate, FtrlFloat l1, FtrlFloat l2, FtrlFloat a, FtrlFloat b);
+    FtrlFloat CalAUC(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders);
+    FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad);
 };
 #endif

@@ -23,21 +23,23 @@ struct Option {
     Option():error(false) {};
 };
 
-string predictHelp() {
+string PredictHelp()
+{
     return string(
-"usage: predict test_file model_file output_file\n");
+"usage: Predict test_file model_file output_file\n");
 }
 
-Option ParseOption(FtrlInt argc, vector<string>& args) {
+Option ParseOption(FtrlInt argc, vector<string>& args)
+{
     Option option;
     option.error = false;
-    if(argc == 1) {
-        cout << predictHelp() << endl;
+    if (argc == 1) {
+        cout << PredictHelp() << endl;
         option.error = true;
         return option;
     }
 
-    if(argc != 4) {
+    if (argc != 4) {
         cout << "cannot parse argument" << endl;
         option.error = true;
         return option;
@@ -50,7 +52,8 @@ Option ParseOption(FtrlInt argc, vector<string>& args) {
     return option;
 }
 
-void predict(string testPath, string modelPath, string outputPath) {
+void Predict(string testPath, string modelPath, string outputPath)
+{
     FtrlProblem prob;
     FtrlLong n = prob.LoadModel(modelPath);
     ofstream fOut(outputPath);
@@ -98,16 +101,17 @@ void predict(string testPath, string modelPath, string outputPath) {
         chunk.Clear();
     }
     localVaLoss = localVaLoss / testData->l;
-    cout << "logloss = " << fixed << setprecision(5) << localVaLoss << endl;
+    cout << "logloss = " << fixed << setprecision(WIDTH5) << localVaLoss << endl;
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char **argv)
+{
     vector<string> args;
-    for(FtrlInt i = 0; i < argc; i++)
+    for (FtrlInt i = 0; i < argc; i++)
         args.push_back(string(argv[i]));
     Option option = ParseOption(argc, args);
-    if(option.error == false) {
-        predict(option.testPath, option.modelPath, option.outputPath);
+    if (option.error == false) {
+        Predict(option.testPath, option.modelPath, option.outputPath);
     }
     return 0;
 }

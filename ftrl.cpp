@@ -3,33 +3,35 @@
  */
 #include "ftrl.h"
 
-FtrlInt const width3 = 3;
-FtrlInt const width4 = 4;
-FtrlInt const width5 = 5;
-FtrlInt const width13 = 13;
+FtrlInt const WIDTH3 = 3;
+FtrlInt const WIDTH4 = 4;
+FtrlInt const WIDTH5 = 5;
+FtrlInt const WIDTH13 = 13;
 
-FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id) {
+FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id)
+{
     fileName = dataName + ".bin." + to_string(id);
 }
 
-struct chunkMeta {
+struct ChunkMeta {
     FtrlLong l, nnz;
     FtrlInt chunkId;
 };
 
-void FtrlChunk::Write() {
+void FtrlChunk::Write()
+{
     FILE* fBin = fopen(fileName.c_str(), "wb");
     if (fBin == nullptr) {
         cout << "Error" << endl;
         exit(1);
     }
 
-    chunkMeta meta;
+    ChunkMeta meta;
     meta.l = l;
     meta.nnz = nnz;
     meta.chunkId = chunkId;
 
-    fwrite(reinterpret_cast<char*>(&meta), sizeof(chunkMeta), 1, fBin);
+    fwrite(reinterpret_cast<char*>(&meta), sizeof(ChunkMeta), 1, fBin);
     fwrite(labels.data(), sizeof(FtrlFloat), l, fBin);
     fwrite(nnzs.data(), sizeof(FtrlInt), l + 1, fBin);
     fwrite(R.data(), sizeof(FtrlFloat), l, fBin);
@@ -37,17 +39,18 @@ void FtrlChunk::Write() {
     fclose(fBin);
 }
 
-void FtrlChunk::Read() {
+void FtrlChunk::Read()
+{
     FILE* fTr = fopen(fileName.c_str(), "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
         exit(1);
     }
 
-    chunkMeta meta;
+    ChunkMeta meta;
 
     size_t bytes;
-    bytes = fread(reinterpret_cast<char*>(&meta), sizeof(chunkMeta), 1, fTr);
+    bytes = fread(reinterpret_cast<char*>(&meta), sizeof(ChunkMeta), 1, fTr);
     l = meta.l;
     nnz = meta.nnz;
     chunkId = meta.chunkId;
@@ -66,60 +69,64 @@ void FtrlChunk::Read() {
     fclose(fTr);
 }
 
-void FtrlChunk::Clear() {
+void FtrlChunk::Clear()
+{
     labels.clear();
     nodes.clear();
     R.clear();
     nnzs.clear();
 }
 
-inline bool exists(const string& name) {
+inline bool Exists(const string& name)
+{
     ifstream f(name.c_str());
     return f.good();
 }
 
-struct diskProblemMeta {
+struct DiskProblemMeta {
     FtrlLong l, n;
     FtrlInt nrChunk;
 };
 
-void FtrlData::write_meta() {
+void FtrlData::WriteMeta()
+{
     string metaName = fileName + ".meta";
-    FILE* f_meta = fopen(metaName.c_str(), "wb");
-    if (f_meta == nullptr) {
+    FILE* fMeta = fopen(metaName.c_str(), "wb");
+    if (fMeta == nullptr) {
         cout << "Error" << endl;
         exit(1);
     }
 
-    diskProblemMeta meta;
+    DiskProblemMeta meta;
     meta.l = l;
     meta.n = n;
     meta.nrChunk = nrChunk;
 
-    fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
-    fclose(f_meta);
+    fwrite(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
+    fclose(fMeta);
 }
 
-void FtrlData::SplitChunks() {
+void FtrlData::SplitChunks()
+{
     string metaName = fileName  +  ".meta";
-    if(exists(metaName)) {
-        FILE* f_meta = fopen(metaName.c_str(), "rb");
-        diskProblemMeta meta;
-        if (f_meta == nullptr) {
+    if (Exists(metaName)) {
+        FILE* fMeta = fopen(metaName.c_str(), "rb");
+        DiskProblemMeta meta;
+        if (fMeta == nullptr) {
             cout << "Error" << endl;
             exit(1);
         }
         size_t bytes;
-        bytes = fread(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
+        bytes = fread(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
         bytes++;
         l = meta.l;
         n = meta.n;
         nrChunk = meta.nrChunk;
-        for(FtrlInt chunkId = 0; chunkId<nrChunk; chunkId++) {
+        for (FtrlInt chunkId = 0; chunkId<nrChunk; chunkId++) {
             FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);
         }
-        fclose(f_meta);
+        fclose(fMeta);
     }
     else {
         string line;
@@ -181,22 +188,23 @@ void FtrlData::SplitChunks() {
         chunk.Clear();
 
         chunks.push_back(chunk);
-        FILE* f_meta = fopen(metaName.c_str(), "wb");
-        if (f_meta == nullptr) {
+        FILE* fMeta = fopen(metaName.c_str(), "wb");
+        if (fMeta == nullptr) {
             cout << "Error" << endl;
             exit(1);
         }
-        diskProblemMeta meta;
+        DiskProblemMeta meta;
         meta.l = l;
         meta.n = n;
         meta.nrChunk = nrChunk;
-        fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
-        fflush(f_meta);
-        fclose(f_meta);
+        fwrite(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
+        fflush(fMeta);
+        fclose(fMeta);
     }
 }
 
-void FtrlData::PrFtrlIntDataInfo() {
+void FtrlData::PrFtrlIntDataInfo()
+{
     cout << "Data: " << fileName << "\t";
     cout << "#features: " << n << "\t";
     cout << "#instances: " << l << "\t";
@@ -204,58 +212,60 @@ void FtrlData::PrFtrlIntDataInfo() {
     cout << endl;
 }
 
-void FtrlProblem::SaveModel(string modelPath) {
-    ofstream f_out(modelPath);
-    f_out << "norm " << param->normalized << endl;
-    f_out << "n " << data->n << endl;
+void FtrlProblem::SaveModel(string modelPath)
+{
+    ofstream fOut(modelPath);
+    fOut << "norm " << param->normalized << endl;
+    fOut << "n " << data->n << endl;
 
     FtrlFloat* wa = w.data();
     FtrlFloat* na = n.data();
     FtrlFloat* za = z.data();
     for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++) {
-        f_out << "w" << j << " " << *wa << " " <<  *na <<" " << *za << endl;
+        fOut << "w" << j << " " << *wa << " " <<  *na <<" " << *za << endl;
     }
-    f_out.close();
+    fOut.close();
 }
 
-FtrlLong FtrlProblem::LoadModel(string modelPath) {
-
-    ifstream f_in(modelPath);
+FtrlLong FtrlProblem::LoadModel(string modelPath)
+{
+    ifstream fIn(modelPath);
 
     string dummy;
-    FtrlLong nr_feature;
+    FtrlLong nrFeature;
 
-    f_in >> dummy >> normlization >> dummy >> nr_feature;
-    w.resize(nr_feature);
-    z.resize(nr_feature);
-    n.resize(nr_feature);
+    fIn >> dummy >> normlization >> dummy >> nrFeature;
+    w.resize(nrFeature);
+    z.resize(nrFeature);
+    n.resize(nrFeature);
 
     FtrlFloat* wptr = w.data();
     FtrlFloat* nptr = n.data();
     FtrlFloat* zptr = z.data();
-    for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++) {
-        f_in >> dummy;
-        f_in >> *wptr >> *nptr >> *zptr;
+    for (FtrlLong j = 0; j < nrFeature; j++, wptr++, nptr++, zptr++) {
+        fIn >> dummy;
+        fIn >> *wptr >> *nptr >> *zptr;
     }
-    return nr_feature;
+    return nrFeature;
 }
 
-void FtrlProblem::Initialize(bool norm, string warmModelPath) {
+void FtrlProblem::Initialize(bool norm, string warmModelPath)
+{
     f.resize(data->n, 0);
-    if(warmModelPath.empty()) {
+    if (warmModelPath.empty()) {
         feats = data->n;
         w.resize(data->n, 0);
         z.resize(data->n, 0);
         n.resize(data->n, 0);
     }
     else {
-        FtrlLong nr_feature = LoadModel(warmModelPath);
-        if(nr_feature < data->n) {
+        FtrlLong nrFeature = LoadModel(warmModelPath);
+        if (nrFeature < data->n) {
             w.resize(data->n, 0);
             z.resize(data->n, 0);
             n.resize(data->n, 0);
         }
-        nr_feature = data->n;
+        nrFeature = data->n;
     }
     t = 0;
     trLoss = 0.0, vaLoss = 0.0, funVal = 0.0, gnorm = 0.0;
@@ -274,7 +284,7 @@ void FtrlProblem::Initialize(bool norm, string warmModelPath) {
                 f[idx]++;
             }
         }
-        if(!param->inMemory)
+        if (!param->inMemory)
             chunk.Clear();
     }
     for (FtrlInt j = 0; j < data->n; j++) {
@@ -286,54 +296,58 @@ void FtrlProblem::Initialize(bool norm, string warmModelPath) {
     startTime = omp_get_wtime();
 }
 
-void FtrlProblem::PrFtrlIntHeaderInfo() {
+void FtrlProblem::PrFtrlIntHeaderInfo()
+{
     cout.width(4);
     cout << "iter";
     if (param->verbose) {
-    cout.width(width13);
+    cout.width(WIDTH13);
     cout << "funVal";
-    cout.width(width13);
+    cout.width(WIDTH13);
     cout << "reg";
-    cout.width(width13);
+    cout.width(WIDTH13);
     cout << "|grad|";
-    cout.width(width13);
+    cout.width(WIDTH13);
     cout << "tr_logloss";
     }
-    if(!testData->fileName.empty()) {
-        cout.width(width13);
+    if (!testData->fileName.empty()) {
+        cout.width(WIDTH13);
         cout << "va_logloss";
-        cout.width(width13);
+        cout.width(WIDTH13);
         cout << "vaAuc";
     }
-    cout.width(width13);
+    cout.width(WIDTH13);
     cout << "time";
     cout << endl;
 }
-void FtrlProblem::PrFtrlIntEpochInfo() {
-    cout.width(width4);
+
+void FtrlProblem::PrFtrlIntEpochInfo()
+{
+    cout.width(WIDTH4);
     cout << t + 1;
     if (param->verbose) {
-        cout.width(width13);
-        cout << scientific << setprecision(width3) << funVal;
-        cout.width(width13);
-        cout << scientific << setprecision(width3) << reg;
-        cout.width(width13);
-        cout << scientific << setprecision(width3) << gnorm;
-        cout.width(width13);
-        cout << fixed << setprecision(width5) << trLoss;
+        cout.width(WIDTH13);
+        cout << scientific << setprecision(WIDTH3) << funVal;
+        cout.width(WIDTH13);
+        cout << scientific << setprecision(WIDTH3) << reg;
+        cout.width(WIDTH13);
+        cout << scientific << setprecision(WIDTH3) << gnorm;
+        cout.width(WIDTH13);
+        cout << fixed << setprecision(WIDTH5) << trLoss;
     }
     if (!testData->fileName.empty()) {
-        cout.width(width13);
-        cout << fixed << setprecision(width5) << vaLoss;
-        cout.width(width13);
-        cout << fixed << setprecision(width5) << vaAuc;
+        cout.width(WIDTH13);
+        cout << fixed << setprecision(WIDTH5) << vaLoss;
+        cout.width(WIDTH13);
+        cout << fixed << setprecision(WIDTH5) << vaAuc;
     }
-    cout.width(width13);
-    cout << fixed << setprecision(width5) << omp_get_wtime() - startTime;
+    cout.width(WIDTH13);
+    cout << fixed << setprecision(WIDTH5) << omp_get_wtime() - startTime;
     cout << endl;
 }
 
-FtrlFloat FtrlProblem::wTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate=false, FtrlFloat l1 = 0, FtrlFloat l2 = 0, FtrlFloat a = 0, FtrlFloat b = 0) {
+FtrlFloat FtrlProblem::WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate=false, FtrlFloat l1 = 0, FtrlFloat l2 = 0, FtrlFloat a = 0, FtrlFloat b = 0)
+{
     FtrlFloat p = 0;
     for (FtrlInt s = begin; s < end; s++) {
         Node& x = chunk.nodes[s];
@@ -342,7 +356,7 @@ FtrlFloat FtrlProblem::wTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
             continue;
         }
         FtrlFloat val = x.val * r;
-        if(doUpdate) {
+        if (doUpdate) {
             FtrlFloat zi, ni;
             zi = z[idx], ni = n[idx];
             if (abs(zi) > l1 * f[idx]) {
@@ -357,7 +371,8 @@ FtrlFloat FtrlProblem::wTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
     return p;
 }
 
-FtrlFloat FtrlProblem::calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders) {
+FtrlFloat FtrlProblem::CalAUC(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
+{
     sort(vaOrders.begin(), vaOrders.end(), [&vaScores] (FtrlInt i, FtrlInt j) {return vaScores[i] < vaScores[j];});
 
     FtrlFloat prev_score = vaScores[0];
@@ -394,7 +409,8 @@ FtrlFloat FtrlProblem::calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat
     return auc;
 }
 
-FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad) {
+FtrlFloat FtrlProblem::OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad)
+{
     FtrlFloat l1 = param->l1;
     FtrlFloat l2 = param->l2;
     FtrlFloat a = param->alpha;
@@ -418,9 +434,9 @@ FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
             FtrlInt i = innerOrder[ii];
             FtrlFloat y, p;
             FtrlFloat r = param->normalized ? chunk.R[i] : 1;
-            y = chunk.labels[i], p = wTx(chunk, chunk.nnzs[i], chunk.nnzs[i + 1], r, doUpdate, l1, l2, a, b);
+            y = chunk.labels[i], p = WTx(chunk, chunk.nnzs[i], chunk.nnzs[i + 1], r, doUpdate, l1, l2, a, b);
 
-            if(doAuc) {
+            if (doAuc) {
                 vaScores[globalI + i] = p;
                 vaOrders[globalI + i] = globalI + i;
                 vaLabels[globalI + i] = y;
@@ -437,7 +453,7 @@ FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
             }
 
             bool doGrad = grad.size() > 0;
-            if(!doGrad && !doUpdate)
+            if (!doGrad && !doUpdate)
                 continue;
             FtrlFloat tmp = (p * y > 0) ? expM / (1 + expM) :  1 / (1 + expM);
             FtrlFloat kappa = -y * tmp;
@@ -450,7 +466,7 @@ FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
                 theta = 1 / a * (sqrt(n[idx] + g * g) - sqrt(n[idx]));
                 z[idx] += g - theta * w[idx];
                 n[idx] += g * g;
-                if(doGrad) {
+                if (doGrad) {
                     g += l2 * f[idx] * w[idx];
                     grad[idx] += g;
                 }
@@ -461,23 +477,26 @@ FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
         loss += localLoss;
     }
 
-    if(doAuc) {
-        auc = calAuc(currentData, vaLabels, vaScores, vaOrders);
+    if (doAuc) {
+        auc = CalAUC(currentData, vaLabels, vaScores, vaOrders);
     }
 
     return loss / currentData->l;
 }
 
-void FtrlProblem::Validate() {
+void FtrlProblem::Validate()
+{
     vector<FtrlFloat> grad;
-    vaLoss = oneEpoch(testData, false, true, vaAuc, grad);
+    vaLoss = OneEpoch(testData, false, true, vaAuc, grad);
 }
 
-void FtrlProblem::Fun() {
-    FtrlFloat l1 = param->l1, l2 = param->l2;
+void FtrlProblem::Fun()
+{
+    FtrlFloat l1, l2;
+    l1 = param->l1, l2 = param->l2;
     vector<FtrlFloat> grad(data->n, 0);
     funVal = 0.0,  gnorm = 0.0, reg = 0.0;
-    trLoss = oneEpoch(data, false, false, vaAuc, grad);
+    trLoss = OneEpoch(data, false, false, vaAuc, grad);
     for (FtrlInt j = 0; j < data->n; j++) {
         gnorm += grad[j] * grad[j];
         reg += (l1 * abs(w[j])  +  0.5 * l2 * w[j] * w[j]);
@@ -486,7 +505,8 @@ void FtrlProblem::Fun() {
     gnorm = sqrt(gnorm);
 }
 
-void FtrlProblem::Solve() {
+void FtrlProblem::Solve()
+{
     PrFtrlIntHeaderInfo();
     FtrlFloat bestVaLoss = numeric_limits<FtrlFloat>::max();
     vector<FtrlFloat> prev_w(data->n, 0);
@@ -495,15 +515,15 @@ void FtrlProblem::Solve() {
 
     vector<FtrlFloat> grad;
     for (t = 0; t < param->nrPass; t++) {
-        trLoss = oneEpoch(data, true, false, vaAuc, grad);
+        trLoss = OneEpoch(data, true, false, vaAuc, grad);
         if (param->verbose)
             Fun();
         if (!testData->fileName.empty())
             Validate();
 
         PrFtrlIntEpochInfo();
-        if(param->autoStop) {
-            if(vaLoss > bestVaLoss){
+        if (param->autoStop) {
+            if (vaLoss > bestVaLoss){
                 memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
                 memcpy(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
                 memcpy(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));

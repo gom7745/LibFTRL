@@ -19,8 +19,10 @@ struct chunkMeta {
 
 void FtrlChunk::Write() {
     FILE* fBin = fopen(fileName.c_str(), "wb");
-    if (fBin == nullptr)
+    if (fBin == nullptr) {
         cout << "Error" << endl;
+        exit(1);
+    }
 
     chunkMeta meta;
     meta.l = l;
@@ -37,8 +39,10 @@ void FtrlChunk::Write() {
 
 void FtrlChunk::Read() {
     FILE* fTr = fopen(fileName.c_str(), "rb");
-    if (fTr == nullptr)
+    if (fTr == nullptr) {
         cout << "Error" << endl;
+        exit(1);
+    }
 
     chunkMeta meta;
 
@@ -82,8 +86,10 @@ struct diskProblemMeta {
 void FtrlData::write_meta() {
     string metaName = fileName + ".meta";
     FILE* f_meta = fopen(metaName.c_str(), "wb");
-    if (f_meta == nullptr)
+    if (f_meta == nullptr) {
         cout << "Error" << endl;
+        exit(1);
+    }
 
     diskProblemMeta meta;
     meta.l = l;
@@ -91,6 +97,7 @@ void FtrlData::write_meta() {
     meta.nrChunk = nrChunk;
 
     fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
+    fclose(f_meta);
 }
 
 void FtrlData::SplitChunks() {
@@ -98,8 +105,10 @@ void FtrlData::SplitChunks() {
     if(exists(metaName)) {
         FILE* f_meta = fopen(metaName.c_str(), "rb");
         diskProblemMeta meta;
-        if (f_meta == nullptr)
+        if (f_meta == nullptr) {
             cout << "Error" << endl;
+            exit(1);
+        }
         size_t bytes;
         bytes = fread(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
         bytes++;
@@ -110,12 +119,13 @@ void FtrlData::SplitChunks() {
             FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);
         }
+        fclose(f_meta);
     }
     else {
         string line;
         ifstream fs(fileName);
 
-        FtrlInt i = 0;
+        FtrlLong i = 0;
         FtrlInt chunkId = 0;
         FtrlChunk chunk(fileName, chunkId);
         nrChunk++;
@@ -172,14 +182,17 @@ void FtrlData::SplitChunks() {
 
         chunks.push_back(chunk);
         FILE* f_meta = fopen(metaName.c_str(), "wb");
-        if (f_meta == nullptr)
+        if (f_meta == nullptr) {
             cout << "Error" << endl;
+            exit(1);
+        }
         diskProblemMeta meta;
         meta.l = l;
         meta.n = n;
         meta.nrChunk = nrChunk;
         fwrite(reinterpret_cast<char*>(&meta), sizeof(diskProblemMeta), 1, f_meta);
         fflush(f_meta);
+        fclose(f_meta);
     }
 }
 
@@ -253,7 +266,7 @@ void FtrlProblem::Initialize(bool norm, string warmModelPath) {
 
         chunk.Read();
 
-        for (FtrlInt i = 0; i < chunk.l; i++) {
+        for (FtrlLong i = 0; i < chunk.l; i++) {
 
             for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
                 Node x = chunk.nodes[s];
@@ -377,7 +390,7 @@ FtrlFloat FtrlProblem::calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat
         }
     }
     sumPosRank += stuckPos * (begin + begin - 1 + stuckPos + stuckNeg) * 0.5;
-    FtrlFloat auc = (sumPosRank - 0.5 * aucM * (aucM + 1)) / (aucM * aucN);
+    FtrlFloat auc = (sumPosRank - 0.5 * aucM * (aucM + 1)) / (aucM * aucN + 1e-8);
     return auc;
 }
 
@@ -401,7 +414,7 @@ FtrlFloat FtrlProblem::oneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
         random_shuffle(innerOrder.begin(), innerOrder.end());
         FtrlFloat localLoss = 0.0;
 #pragma omp parallel for schedule(static) reduction( + : localLoss)
-        for (FtrlInt ii = 0; ii < chunk.l; ii++) {
+        for (FtrlLong ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = innerOrder[ii];
             FtrlFloat y, p;
             FtrlFloat r = param->normalized ? chunk.R[i] : 1;

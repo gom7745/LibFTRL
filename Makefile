@@ -6,6 +6,11 @@ CXXFLAGS = -Wall -O3 -std=c++0x -march=native
 DFLAG += -DUSEOMP
 CXXFLAGS += -fopenmp
 
+HOST=$(shell hostname)
+ifeq ("$(HOST)","peanuts")
+CXXFLAGS += -Ddebug
+endif
+
 all: train predict ftrl-${VERSION}.zip
 
 train: train.cpp ftrl.o
@@ -14,7 +19,7 @@ train: train.cpp ftrl.o
 predict: predict.cpp ftrl.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-ffm.o: ftrl.cpp ftrl.h
+ftrl.o: ftrl.cpp ftrl.h
 	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $<
 
 ftrl-${VERSION}.zip: train predict

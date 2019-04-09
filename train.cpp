@@ -24,7 +24,7 @@ string BaseName(string path)
     if (pos == string::npos)
         return path;
     else
-        return path.substr(pos+1);
+        return path.substr(pos + 1);
 }
 
 bool IsNumerical(string str)
@@ -69,7 +69,7 @@ Option ParseOption(FtrlInt argc, vector<string>& args)
     option.verbose = 1;
     option.param = make_shared<Parameter>();
 
-    if (argc == 1) {
+    if (argc == ONE) {
         cout << TrainHelp() << endl;
         option.error = true;
         return option;
@@ -171,7 +171,7 @@ Option ParseOption(FtrlInt argc, vector<string>& args)
             option.param->nrThreads = atof(args[i].c_str());
         }
         else if (args[i].compare("-p") == 0) {
-            if (i == argc-1) {
+            if (i == argc - 1) {
                 cout << "need to specify path after -p" << endl;
                 option.error = true;
             }
@@ -180,7 +180,7 @@ Option ParseOption(FtrlInt argc, vector<string>& args)
             option.testPath = string(args[i]);
         }
         else if (args[i].compare("-m") == 0) {
-            if (i == argc-1) {
+            if (i == argc - 1) {
                 cout << "need to specify warmstart model path after -m" << endl;
                 option.error = true;
             }
@@ -211,7 +211,7 @@ Option ParseOption(FtrlInt argc, vector<string>& args)
         }
     }
 
-    if (i != argc-2 && i != argc-1) {
+    if (i != argc - TWO && i != argc - ONE) {
         cout << "cannot parse commmand" << endl;
         option.error = true;
         return option;

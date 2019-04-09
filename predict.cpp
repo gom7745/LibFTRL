@@ -33,21 +33,21 @@ Option ParseOption(FtrlInt argc, vector<string>& args)
 {
     Option option;
     option.error = false;
-    if (argc == 1) {
+    if (argc == ONE) {
         cout << PredictHelp() << endl;
         option.error = true;
         return option;
     }
 
-    if (argc != 4) {
+    if (argc != FOUR) {
         cout << "cannot parse argument" << endl;
         option.error = true;
         return option;
     }
 
-    option.testPath = string(args[1]);
-    option.modelPath = string(args[2]);
-    option.outputPath = string(args[3]);
+    option.testPath = string(args[ONE]);
+    option.modelPath = string(args[TWO]);
+    option.outputPath = string(args[THREE]);
 
     return option;
 }
@@ -88,7 +88,7 @@ void Predict(string testPath, string modelPath, string outputPath)
 
             FtrlFloat expM;
 
-            if (wTx*y > 0) {
+            if (wTx * y > 0) {
                 expM = exp(-y * wTx);
                 localVaLoss += log(1 + expM);
             }

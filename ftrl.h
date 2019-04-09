@@ -15,6 +15,10 @@
 #include <cstring>
 #include <algorithm>
 
+#ifndef debug
+#include <memcpy.h>
+#endif
+
 #include "omp.h"
 
 using namespace std;
@@ -28,6 +32,13 @@ extern FtrlInt const WIDTH3;
 extern FtrlInt const WIDTH4;
 extern FtrlInt const WIDTH5;
 extern FtrlInt const WIDTH13;
+extern FtrlInt const ONE;
+extern FtrlInt const TWO;
+extern FtrlInt const THREE;
+extern FtrlInt const FOUR;
+extern FtrlInt const FIVE;
+extern FtrlFloat const PONE;
+extern FtrlFloat const EPSILON;
 
 class Node {
 public:
@@ -43,7 +54,8 @@ public:
     FtrlFloat l1, l2, alpha, beta;
     FtrlInt nrPass, nrThreads;
     bool normalized, verbose, freq, autoStop, noAuc, inMemory;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), nrPass(1), nrThreads(1), normalized(false), verbose(true), freq(true), autoStop(false), noAuc(false), inMemory(false){};
+    Parameter():l1(PONE), l2(PONE), alpha(PONE), beta(ONE), nrPass(ONE), nrThreads(ONE), normalized(false),\
+                verbose(true), freq(true), autoStop(false), noAuc(false), inMemory(false){};
     ~Parameter(){};
 };
 
@@ -108,8 +120,10 @@ public:
     void Fun();
     void Validate();
 private:
-    FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate, FtrlFloat l1, FtrlFloat l2, FtrlFloat a, FtrlFloat b);
-    FtrlFloat CalAUC(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders);
-    FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc, vector<FtrlFloat>& grad);
+    FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate);
+    FtrlFloat g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
+            vector<FtrlFloat>& vaOrders);
+    FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc,\
+            vector<FtrlFloat>& grad);
 };
 #endif

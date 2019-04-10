@@ -65,168 +65,50 @@ string TrainHelp()
 Option ParseOption(FtrlInt argc, vector<string>& args)
 {
     Option option;
-    option.error = false;
-    option.verbose = 1;
-    option.param = make_shared<Parameter>();
-
-    if (argc == ONE) {
-        cout << TrainHelp() << endl;
-        option.error = true;
-        return option;
-    }
-
+    option.error = false, option.verbose = 1, option.param = make_shared<Parameter>();
     FtrlInt i = 0;
     for (i = 1; i < argc; i++) {
         if (args[i].compare("-s") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "need to specify solver type\
-                                        after -s" << endl;
-                option.error = true;
-            }
-            i++;
-
-            if (!IsNumerical(args[i])) {
-                cout << "-s should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.solver = atoi(args[i].c_str());
-        }
-        else if (args[i].compare("-l1") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "need to specify l1 regularization\
-                                        coefficient after -l1" << endl;
-                option.error = true;
-            }
-            i++;
-
-            if (!IsNumerical(args[i])) {
-                cout << "-l1 should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->l1 = atof(args[i].c_str());
-        }
-        else if (args[i].compare("-l2") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "need to specify l2\
-                                        regularization coefficient\
-                                        after -l2" << endl;
-                option.error = true;
-            }
-            i++;
-
-            if (!IsNumerical(args[i])) {
-                cout << "-l2 should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->l2 = atof(args[i].c_str());
-        }
-        else if (args[i].compare("-t") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "need to specify max number of\
-                                        iterations after -t" << endl;
-                option.error = true;
-            }
-            i++;
-
-            if (!IsNumerical(args[i])) {
-                cout << "-t should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->nrPass = atoi(args[i].c_str());
-        }
-        else if (args[i].compare("-a") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "missing core numbers after -c" << endl;
-                option.error = true;
-            }
-            i++;
-            if (!IsNumerical(args[i])) {
-                cout << "-c should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->alpha = atof(args[i].c_str());
-        }
-        else if (args[i].compare("-b") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "missing core numbers after -c" << endl;
-                option.error = true;
-            }
-            i++;
-            if (!IsNumerical(args[i])) {
-                cout << "-c should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->beta = atof(args[i].c_str());
-        }
-        else if (args[i].compare("-c") == 0) {
-            if ((i + 1) >= argc) {
-                cout << "missing core numbers after -c" << endl;
-                option.error = true;
-            }
-            i++;
-            if (!IsNumerical(args[i])) {
-                cout << "-c should be followed by a number" << endl;
-                option.error = true;
-            }
-            option.param->nrThreads = atof(args[i].c_str());
-        }
-        else if (args[i].compare("-p") == 0) {
-            if (i == argc - 1) {
-                cout << "need to specify path after -p" << endl;
-                option.error = true;
-            }
-            i++;
-
-            option.testPath = string(args[i]);
-        }
-        else if (args[i].compare("-m") == 0) {
-            if (i == argc - 1) {
-                cout << "need to specify warmstart model path after -m" << endl;
-                option.error = true;
-            }
-            i++;
-
-            option.warmModelPath = string(args[i]);
-        }
-        else if (args[i].compare("--norm") == 0) {
+            i++; option.solver = atoi(args[i].c_str());
+        } else if (args[i].compare("-l1") == 0) {
+            i++; option.param->l1 = atof(args[i].c_str());
+        } else if (args[i].compare("-l2") == 0) {
+            i++; option.param->l2 = atof(args[i].c_str());
+        } else if (args[i].compare("-t") == 0) {
+            i++; option.param->nrPass = atoi(args[i].c_str());
+        } else if (args[i].compare("-a") == 0) {
+            i++; option.param->alpha = atof(args[i].c_str());
+        } else if (args[i].compare("-b") == 0) {
+            i++; option.param->beta = atof(args[i].c_str());
+        } else if (args[i].compare("-c") == 0) {
+            i++; option.param->nrThreads = atof(args[i].c_str());
+        } else if (args[i].compare("-p") == 0) {
+            i++; option.testPath = string(args[i]);
+        } else if (args[i].compare("-m") == 0) {
+            i++; option.warmModelPath = string(args[i]);
+        } else if (args[i].compare("--norm") == 0)
             option.param->normalized = true;
-        }
-        else if (args[i].compare("--verbose") == 0) {
+        else if (args[i].compare("--verbose") == 0)
             option.param->verbose = true;
-        }
-        else if (args[i].compare("--freq") == 0) {
+        else if (args[i].compare("--freq") == 0)
             option.param->freq = true;
-        }
-        else if (args[i].compare("--auto-stop") == 0) {
+        else if (args[i].compare("--auto-stop") == 0)
             option.param->autoStop = true;
-        }
-        else if (args[i].compare("--no-auc") == 0) {
+        else if (args[i].compare("--no-auc") == 0)
             option.param->noAuc = true;
-        }
-        else if (args[i].compare("--in-memory") == 0) {
+        else if (args[i].compare("--in-memory") == 0)
             option.param->inMemory = true;
-        }
-        else {
+        else
             break;
-        }
     }
-
     if (i != argc - TWO && i != argc - ONE) {
-        cout << "cannot parse commmand" << endl;
-        option.error = true;
-        return option;
+        cout << "cannot parse commmand" << endl; option.error = true; return option;
     }
     option.dataPath = string(args[i++]);
-
-    if (i < argc) {
+    if (i < argc)
         option.modelPath = string(args[i]);
-    } else if (i == argc) {
+    else if (i == argc)
         option.modelPath = BaseName(option.dataPath)  +  ".model";
-    } else {
-        cout << "cannot parse commmand" << endl;
-        option.error = true;
-    }
-
     return option;
 }
 

@@ -14,10 +14,10 @@ FtrlInt const WIDTH5 = 5;
 FtrlInt const WIDTH13 = 13;
 FtrlFloat const PONE = 0.1;
 FtrlFloat const EPSILON = 1e-8;
-FtrlFloat l1 = 0;
-FtrlFloat l2 = 0;
-FtrlFloat a = 0;
-FtrlFloat b = 0;
+FtrlFloat g_l1 = 0;
+FtrlFloat g_l2 = 0;
+FtrlFloat g_a = 0;
+FtrlFloat g_b = 0;
 
 FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id)
 {
@@ -31,6 +31,7 @@ struct ChunkMeta {
 
 void FtrlChunk::Write()
 {
+    cout << fileName << endl;
     FILE* fBin = fopen(fileName.c_str(), "wb");
     if (fBin == nullptr) {
         cout << "Error" << endl;
@@ -52,7 +53,7 @@ void FtrlChunk::Write()
 
 void FtrlChunk::Read()
 {
-    FILE* fTr = fopen(fileName.c_str(), "rb");
+    FILE* fTr = fopen(realpath(fileName.c_str(), NULL), "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
         exit(1);
@@ -117,6 +118,55 @@ void FtrlData::WriteMeta()
     fclose(fMeta);
 }
 
+FtrlInt FtrlData::genChunk(ifstream& fs, FtrlChunk& chunk)
+{
+    string line;
+    FtrlLong i = 0;
+    chunk.nnzs.push_back(i);
+    while (getline(fs, line)) {
+        FtrlFloat label = 0;
+        istringstream iss(line);
+
+        chunk.l++;
+
+        iss >> label;
+        label = (label > 0) ? 1 : -1;
+        chunk.labels.push_back(label);
+
+        FtrlInt idx = 0;
+        FtrlFloat val = 0;
+
+        char dummy;
+        FtrlFloat r = 0;
+        FtrlInt max_nnz = 0;
+        while (iss >> idx >> dummy >> val) {
+            i++;
+            max_nnz++;
+            if (n < idx + 1) {
+                n = idx + 1;
+            }
+            chunk.nodes.push_back(Node(idx, val));
+            r += val * val;
+        }
+        chunk.nnzs.push_back(i);
+        chunk.R.push_back(1 / sqrt(r));
+        if (i > CHUNK_SIZE) {
+            chunk.nnz = i;
+            chunk.Write();
+            chunk.Clear();
+
+            return i;
+        }
+    }
+    if(chunk.l > 0) {
+        chunk.nnz = i;
+        chunk.Write();
+        chunk.Clear();
+    }
+
+    return i;
+}
+
 void FtrlData::SplitChunks()
 {
     string metaName = fileName  +  ".meta";
@@ -130,9 +180,7 @@ void FtrlData::SplitChunks()
         size_t bytes;
         bytes = fread(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
         bytes++;
-        l = meta.l;
-        n = meta.n;
-        nrChunk = meta.nrChunk;
+        l = meta.l, n = meta.n, nrChunk = meta.nrChunk;
         for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
             FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);
@@ -140,74 +188,35 @@ void FtrlData::SplitChunks()
         fclose(fMeta);
     }
     else {
-        string line;
         ifstream fs(fileName);
 
-        FtrlLong i = 0;
         FtrlInt chunkId = 0;
         FtrlChunk chunk(fileName, chunkId);
         nrChunk++;
+        while(true) {
+            FtrlLong i = genChunk(fs, chunk);
+            if(i == 0)
+                break;
+            l += chunk.l;
+            chunks.push_back(chunk);
 
-        chunk.nnzs.push_back(i);
-
-        while (getline(fs, line)) {
-            FtrlFloat label = 0;
-            istringstream iss(line);
-
-            l++;
-            chunk.l++;
-
-            iss >> label;
-            label = (label > 0) ? 1 : -1;
-            chunk.labels.push_back(label);
-
-            FtrlInt idx = 0;
-            FtrlFloat val = 0;
-
-            char dummy;
-            FtrlFloat r = 0;
-            FtrlInt max_nnz = 0;
-            while (iss >> idx >> dummy >> val) {
-                i++;
-                max_nnz++;
-                if (n < idx + 1) {
-                    n = idx + 1;
-                }
-                chunk.nodes.push_back(Node(idx, val));
-                r += val * val;
-            }
+            chunkId++;
+            chunk = FtrlChunk(fileName, chunkId);
             chunk.nnzs.push_back(i);
-            chunk.R.push_back(1 / sqrt(r));
-            if (i > CHUNK_SIZE) {
-
-                chunk.nnz = i;
-                chunk.Write();
-                chunk.Clear();
-
-                chunks.push_back(chunk);
-
-                i = 0;
-                chunkId++;
-                chunk = FtrlChunk(fileName, chunkId);
-                chunk.nnzs.push_back(i);
-                nrChunk++;
-            }
+            nrChunk++;
+        }
+        if(chunk.l == 0) {
+            chunkId--;
+            nrChunk--;
         }
 
-        chunk.nnz = i;
-        chunk.Write();
-        chunk.Clear();
-
-        chunks.push_back(chunk);
         FILE* fMeta = fopen(metaName.c_str(), "wb");
         if (fMeta == nullptr) {
             cout << "Error" << endl;
             exit(1);
         }
         DiskProblemMeta meta;
-        meta.l = l;
-        meta.n = n;
-        meta.nrChunk = nrChunk;
+        meta.l = l, meta.n = n, meta.nrChunk = nrChunk;
         fwrite(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
         fflush(fMeta);
         fclose(fMeta);
@@ -370,8 +379,8 @@ FtrlFloat FtrlProblem::WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
         if (doUpdate) {
             FtrlFloat zi, ni;
             zi = z[idx], ni = n[idx];
-            if (abs(zi) > l1 * f[idx]) {
-                w[idx] = -(zi - (TWO * (zi > 0) - ONE) * l1 * f[idx]) / ((b + sqrt(ni)) / a + l2 * f[idx]);
+            if (abs(zi) > g_l1 * f[idx]) {
+                w[idx] = -(zi - (TWO * (zi > 0) - ONE) * g_l1 * f[idx]) / ((g_b + sqrt(ni)) / g_a + g_l2 * f[idx]);
             }
             else {
                 w[idx] = 0;
@@ -383,7 +392,7 @@ FtrlFloat FtrlProblem::WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
 }
 
 FtrlFloat FtrlProblem::g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels,\
-        vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
+vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
 {
     sort(vaOrders.begin(), vaOrders.end(), [&vaScores] (FtrlInt i, FtrlInt j) {return vaScores[i] < vaScores[j];});
 
@@ -398,7 +407,7 @@ FtrlFloat FtrlProblem::g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFlo
         FtrlFloat score = vaScores[sortedI];
 
         if (score !=  prev_score) {
-            sumPosRank += stuckPos * (begin + begin - 1 + stuckPos + stuckNeg) * 0.5;
+            sumPosRank += stuckPos * (begin + begin - ONE + stuckPos + stuckNeg) * PONE * FIVE;
             prev_score = score;
             begin = i;
             stuckNeg = 0;
@@ -421,8 +430,28 @@ FtrlFloat FtrlProblem::g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFlo
     return auc;
 }
 
+void FtrlProblem::Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r) {
+    bool doGrad = grad.size() > 0;
+
+    FtrlInt begin, end;
+    begin = chunk.nnzs[i], end = chunk.nnzs[i + 1];
+    for (FtrlInt s = begin; s < end; s++) {
+        Node& x = chunk.nodes[s];
+        FtrlInt idx = x.idx;
+        FtrlFloat val, g, theta;
+        val = x.val * r, g = kappa * val, theta = 0;
+        theta = 1 / g_a * (sqrt(n[idx] + g * g) - sqrt(n[idx]));
+        z[idx] += g - theta * w[idx];
+        n[idx] += g * g;
+        if (doGrad) {
+            g += g_l2 * f[idx] * w[idx];
+            grad[idx] += g;
+        }
+    }
+}
+
 FtrlFloat FtrlProblem::OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc,\
-        FtrlFloat& auc, vector<FtrlFloat>& grad)
+FtrlFloat& auc, vector<FtrlFloat>& grad)
 {
     FtrlFloat loss = 0;
     FtrlInt nrChunk, globalI;
@@ -438,58 +467,34 @@ FtrlFloat FtrlProblem::OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate,
         iota(innerOrder.begin(), innerOrder.end(), 0);
         random_shuffle(innerOrder.begin(), innerOrder.end());
         FtrlFloat localLoss = 0.0;
-#pragma omp parallel for schedule(static)reduction( + : localLoss)
+#pragma omp parallel for schedule(static)reduction(+ : localLoss)
         for (FtrlLong ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = innerOrder[ii];
             FtrlFloat y, p;
             FtrlFloat r = param->normalized ? chunk.R[i] : 1;
             y = chunk.labels[i], p = WTx(chunk, chunk.nnzs[i], chunk.nnzs[i + 1], r, doUpdate);
-
-            if (doAuc) {
-                vaScores[globalI + i] = p;
-                vaOrders[globalI + i] = globalI + i;
-                vaLabels[globalI + i] = y;
-            }
-
+            if (doAuc)
+                vaScores[globalI + i] = p, vaOrders[globalI + i] = globalI + i, vaLabels[globalI + i] = y;
             FtrlFloat expM;
             if (p * y > 0) {
                 expM = exp(-y * p);
                 localLoss += log(1 + expM);
-            }
-            else {
+            } else {
                 expM = exp(y * p);
                 localLoss += -y * p + log(1 + expM);
             }
-
-            bool doGrad = grad.size() > 0;
-            if (!doGrad && !doUpdate)
+            if (grad.size() == 0 && !doUpdate)
                 continue;
             FtrlFloat tmp = (p * y > 0) ? expM / (1 + expM) :  1 / (1 + expM);
             FtrlFloat kappa = -y * tmp;
-
-            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
-                Node& x = chunk.nodes[s];
-                FtrlInt idx = x.idx;
-                FtrlFloat val, g, theta;
-                val = x.val * r, g = kappa * val, theta = 0;
-                theta = 1 / a * (sqrt(n[idx] + g * g) - sqrt(n[idx]));
-                z[idx] += g - theta * w[idx];
-                n[idx] += g * g;
-                if (doGrad) {
-                    g += l2 * f[idx] * w[idx];
-                    grad[idx] += g;
-                }
-            }
+            Update(chunk, i, grad, kappa, r);
         }
         globalI += chunk.l;
         chunk.Clear();
         loss += localLoss;
     }
-
-    if (doAuc) {
+    if (doAuc)
         auc = g_calAuc(currentData, vaLabels, vaScores, vaOrders);
-    }
-
     return loss / currentData->l;
 }
 
@@ -506,7 +511,7 @@ void FtrlProblem::Fun()
     trLoss = OneEpoch(data, false, false, vaAuc, grad);
     for (FtrlInt j = 0; j < data->n; j++) {
         gnorm += grad[j] * grad[j];
-        reg += (l1 * abs(w[j])  +  PONE * FIVE * l2 * w[j] * w[j]);
+        reg += (g_l1 * abs(w[j])  +  PONE * FIVE * g_l2 * w[j] * w[j]);
     }
     funVal = trLoss * data->l + reg;
     gnorm = sqrt(gnorm);
@@ -514,7 +519,7 @@ void FtrlProblem::Fun()
 
 void FtrlProblem::Solve()
 {
-    l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
+    g_l1 = param->l1, g_l2 = param->l2, g_a = param->alpha, g_b = param->beta;
     PrFtrlIntHeaderInfo();
     FtrlFloat bestVaLoss = numeric_limits<FtrlFloat>::max();
     vector<FtrlFloat> prev_w(data->n, 0);
@@ -532,27 +537,15 @@ void FtrlProblem::Solve()
         PrFtrlIntEpochInfo();
         if (param->autoStop) {
             if (vaLoss > bestVaLoss) {
-#ifndef debug
-                memcpy_s(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
-                memcpy_s(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
-                memcpy_s(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));
-#else
-                memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
-                memcpy(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
-                memcpy(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));
-#endif
+                copy(prev_w.begin(), prev_w.end(), w.begin());
+                copy(prev_n.begin(), prev_n.end(), n.begin());
+                copy(prev_z.begin(), prev_z.end(), z.begin());
                 cout << "Auto-stop. Use model at" << t <<"th iteration."<<endl;
                 break;
             } else {
-#ifndef debug
-                memcpy_s(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
-                memcpy_s(prev_n.data(), n.data(), data->n * sizeof(FtrlFloat));
-                memcpy_s(prev_z.data(), z.data(), data->n * sizeof(FtrlFloat));
-#else
-                memcpy(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
-                memcpy(prev_n.data(), n.data(), data->n * sizeof(FtrlFloat));
-                memcpy(prev_z.data(), z.data(), data->n * sizeof(FtrlFloat));
-#endif
+                copy(w.begin(), w.end(), prev_w.begin());
+                copy(n.begin(), n.end(), prev_n.begin());
+                copy(z.begin(), z.end(), prev_z.begin());
                 bestVaLoss = vaLoss;
             }
         }

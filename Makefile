@@ -1,15 +1,10 @@
 VERSION = 1.0.0.117
 CXX = g++
-CXXFLAGS = -Wall -O3 -std=c++0x -march=native
+CXXFLAGS = -Wall -g -std=c++0x -march=native
 
 # comment the following flags if you do not want to use OpenMP
 DFLAG += -DUSEOMP
 CXXFLAGS += -fopenmp
-
-HOST=$(shell hostname)
-ifeq ("$(HOST)","peanuts")
-CXXFLAGS += -Ddebug
-endif
 
 all: train predict ftrl-${VERSION}.zip
 

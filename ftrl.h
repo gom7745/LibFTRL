@@ -15,10 +15,6 @@
 #include <cstring>
 #include <algorithm>
 
-#ifndef debug
-#include <memcpy.h>
-#endif
-
 #include "omp.h"
 
 using namespace std;
@@ -55,7 +51,7 @@ public:
     FtrlInt nrPass, nrThreads;
     bool normalized, verbose, freq, autoStop, noAuc, inMemory;
     Parameter():l1(PONE), l2(PONE), alpha(PONE), beta(ONE), nrPass(ONE), nrThreads(ONE), normalized(false),\
-                verbose(true), freq(true), autoStop(false), noAuc(false), inMemory(false){};
+    verbose(true), freq(true), autoStop(false), noAuc(false), inMemory(false){};
     ~Parameter(){};
 };
 
@@ -86,11 +82,13 @@ public:
 
     vector<FtrlChunk> chunks;
 
-    FtrlData(string fileName): fileName(fileName), l(0), n(0), nrChunk(0) {};
+    explicit FtrlData(string fileName): fileName(fileName), l(0), n(0), nrChunk(0) {};
     ~FtrlData(){};
     void PrFtrlIntDataInfo();
     void SplitChunks();
     void WriteMeta();
+private:
+    FtrlInt genChunk(ifstream& fs, FtrlChunk& chunk);
 };
 
 class FtrlProblem {
@@ -123,6 +121,7 @@ private:
     FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate);
     FtrlFloat g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
             vector<FtrlFloat>& vaOrders);
+    void Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r);
     FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc,\
             vector<FtrlFloat>& grad);
 };

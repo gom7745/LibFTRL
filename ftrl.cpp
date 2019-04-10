@@ -31,7 +31,8 @@ struct ChunkMeta {
 
 void FtrlChunk::Write()
 {
-    cout << fileName << endl;
+    if(fileName.find("../") != string::npos)
+        exit(1);
     FILE* fBin = fopen(fileName.c_str(), "wb");
     if (fBin == nullptr) {
         cout << "Error" << endl;
@@ -53,6 +54,8 @@ void FtrlChunk::Write()
 
 void FtrlChunk::Read()
 {
+    if(fileName.find("../") != string::npos)
+        exit(1);
     FILE* fTr = fopen(fileName.c_str(), "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
@@ -104,6 +107,8 @@ struct DiskProblemMeta {
 void FtrlData::WriteMeta()
 {
     string metaName = fileName + ".meta";
+    if(metaName.find("../") != string::npos)
+        exit(1);
     FILE* fMeta = fopen(metaName.c_str(), "wb");
     if (fMeta == nullptr) {
         cout << "Error" << endl;
@@ -172,6 +177,8 @@ void FtrlData::SplitChunks()
 {
     string metaName = fileName  +  ".meta";
     if (Exists(metaName)) {
+        if(metaName.find("../") != string::npos)
+            exit(1);
         FILE* fMeta = fopen(metaName.c_str(), "rb");
         DiskProblemMeta meta;
         if (fMeta == nullptr) {
@@ -211,6 +218,8 @@ void FtrlData::SplitChunks()
             nrChunk--;
         }
 
+        if(metaName.find("../") != string::npos)
+            exit(1);
         FILE* fMeta = fopen(metaName.c_str(), "wb");
         if (fMeta == nullptr) {
             cout << "Error" << endl;

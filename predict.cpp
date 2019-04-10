@@ -66,6 +66,7 @@ void Predict(string testPath, string modelPath, string outputPath)
     FtrlInt nrChunk = testData->nrChunk;
     FtrlFloat localVaLoss = 0.0;
 
+    assert(nrChunk >= 0 && nrChunk < LONG_MAX);
     for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
 
         FtrlChunk chunk = testData->chunks[chunkId];

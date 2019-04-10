@@ -14,6 +14,8 @@
 #include <iomanip>
 #include <cstring>
 #include <algorithm>
+#include <climits>
+#include <cassert>
 
 #include "omp.h"
 

@@ -53,7 +53,7 @@ void FtrlChunk::Write()
 
 void FtrlChunk::Read()
 {
-    FILE* fTr = fopen(realpath(fileName.c_str(), NULL), "rb");
+    FILE* fTr = fopen(fileName.c_str(), "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
         exit(1);
@@ -72,6 +72,7 @@ void FtrlChunk::Read()
     nodes.resize(nnz);
     nnzs.resize(l + 1);
 
+    assert(l >= 0 && l < LLONG_MAX);
     bytes = fread(labels.data(), sizeof(FtrlFloat), l, fTr);
     bytes = fread(nnzs.data(), sizeof(FtrlInt), l + 1, fTr);
     bytes = fread(R.data(), sizeof(FtrlFloat), l, fTr);
@@ -296,6 +297,7 @@ void FtrlProblem::Initialize(bool norm, string warmModelPath)
 
         chunk.Read();
 
+        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
         for (FtrlLong i = 0; i < chunk.l; i++) {
 
             for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
@@ -467,6 +469,7 @@ FtrlFloat& auc, vector<FtrlFloat>& grad)
         iota(innerOrder.begin(), innerOrder.end(), 0);
         random_shuffle(innerOrder.begin(), innerOrder.end());
         FtrlFloat localLoss = 0.0;
+        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
 #pragma omp parallel for schedule(static)reduction(+ : localLoss)
         for (FtrlLong ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = innerOrder[ii];

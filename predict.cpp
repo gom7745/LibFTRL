@@ -71,6 +71,7 @@ void Predict(string testPath, string modelPath, string outputPath)
         FtrlChunk chunk = testData->chunks[chunkId];
         chunk.Read();
 
+        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
         for (FtrlInt i = 0; i < chunk.l; i++) {
 
             FtrlFloat y, wTx;

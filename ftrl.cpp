@@ -31,9 +31,10 @@ struct ChunkMeta {
 
 void FtrlChunk::Write()
 {
-    if(fileName.find("../") != string::npos)
-        exit(1);
-    FILE* fBin = fopen(fileName.c_str(), "wb");
+    const char* ptr = fileName.c_str();
+    char path[1024];
+    realpath(ptr, path);
+    FILE* fBin = fopen(path, "wb");
     if (fBin == nullptr) {
         cout << "Error" << endl;
         exit(1);
@@ -54,9 +55,10 @@ void FtrlChunk::Write()
 
 void FtrlChunk::Read()
 {
-    if(fileName.find("../") != string::npos)
-        exit(1);
-    FILE* fTr = fopen(fileName.c_str(), "rb");
+    const char* ptr = fileName.c_str();
+    char path[1024];
+    realpath(ptr, path);
+    FILE* fTr = fopen(path, "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
         exit(1);
@@ -107,9 +109,10 @@ struct DiskProblemMeta {
 void FtrlData::WriteMeta()
 {
     string metaName = fileName + ".meta";
-    if(metaName.find("../") != string::npos)
-        exit(1);
-    FILE* fMeta = fopen(metaName.c_str(), "wb");
+    const char* ptr = metaName.c_str();
+    char path[1024];
+    realpath(ptr, path);
+    FILE* fMeta = fopen(path, "wb");
     if (fMeta == nullptr) {
         cout << "Error" << endl;
         exit(1);
@@ -177,9 +180,10 @@ void FtrlData::SplitChunks()
 {
     string metaName = fileName  +  ".meta";
     if (Exists(metaName)) {
-        if(metaName.find("../") != string::npos)
-            exit(1);
-        FILE* fMeta = fopen(metaName.c_str(), "rb");
+        const char* ptr = metaName.c_str();
+        char path[1024];
+        realpath(ptr, path);
+        FILE* fMeta = fopen(path, "rb");
         DiskProblemMeta meta;
         if (fMeta == nullptr) {
             cout << "Error" << endl;
@@ -218,9 +222,10 @@ void FtrlData::SplitChunks()
             nrChunk--;
         }
 
-        if(metaName.find("../") != string::npos)
-            exit(1);
-        FILE* fMeta = fopen(metaName.c_str(), "wb");
+        const char* ptr = metaName.c_str();
+        char path[1024];
+        realpath(ptr, path);
+        FILE* fMeta = fopen(path, "wb");
         if (fMeta == nullptr) {
             cout << "Error" << endl;
             exit(1);

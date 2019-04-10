@@ -19,6 +19,10 @@ FtrlFloat g_l2 = 0;
 FtrlFloat g_a = 0;
 FtrlFloat g_b = 0;
 
+bool IsValidPath(char* path) {
+    return true;
+}
+
 FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id)
 {
     fileName = dataName + ".bin." + to_string(id);
@@ -34,6 +38,8 @@ void FtrlChunk::Write()
     const char* ptr = fileName.c_str();
     char path[1024];
     realpath(ptr, path);
+    if(!IsValidPath(path))
+        exit(1);
     FILE* fBin = fopen(path, "wb");
     if (fBin == nullptr) {
         cout << "Error" << endl;
@@ -58,6 +64,8 @@ void FtrlChunk::Read()
     const char* ptr = fileName.c_str();
     char path[1024];
     realpath(ptr, path);
+    if(!IsValidPath(path))
+        exit(1);
     FILE* fTr = fopen(path, "rb");
     if (fTr == nullptr) {
         cout << "Error" << endl;
@@ -112,6 +120,8 @@ void FtrlData::WriteMeta()
     const char* ptr = metaName.c_str();
     char path[1024];
     realpath(ptr, path);
+    if(!IsValidPath(path))
+        exit(1);
     FILE* fMeta = fopen(path, "wb");
     if (fMeta == nullptr) {
         cout << "Error" << endl;
@@ -183,6 +193,8 @@ void FtrlData::SplitChunks()
         const char* ptr = metaName.c_str();
         char path[1024];
         realpath(ptr, path);
+        if(!IsValidPath(path))
+            exit(1);
         FILE* fMeta = fopen(path, "rb");
         DiskProblemMeta meta;
         if (fMeta == nullptr) {
@@ -225,6 +237,8 @@ void FtrlData::SplitChunks()
         const char* ptr = metaName.c_str();
         char path[1024];
         realpath(ptr, path);
+        if(!IsValidPath(path))
+            exit(1);
         FILE* fMeta = fopen(path, "wb");
         if (fMeta == nullptr) {
             cout << "Error" << endl;

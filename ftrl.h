@@ -76,6 +76,11 @@ public:
     ~FtrlChunk(){};
 };
 
+struct DiskProblemMeta {
+    FtrlLong l = 0, n = 0;
+    FtrlInt nrChunk = 0;
+};
+
 class FtrlData {
 public:
     string fileName;
@@ -89,8 +94,9 @@ public:
     void PrFtrlIntDataInfo();
     void SplitChunks();
     void WriteMeta();
+    DiskProblemMeta ReadMeta();
 private:
-    FtrlInt genChunk(ifstream& fs, FtrlChunk& chunk);
+    FtrlInt GenChunk(ifstream& fs, FtrlChunk& chunk);
 };
 
 class FtrlProblem {
@@ -121,7 +127,7 @@ public:
     void Validate();
 private:
     FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate);
-    FtrlFloat g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
+    FtrlFloat GCalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
             vector<FtrlFloat>& vaOrders);
     void Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r);
     FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc,\

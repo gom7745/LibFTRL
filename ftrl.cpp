@@ -19,7 +19,10 @@ FtrlFloat g_l2 = 0;
 FtrlFloat g_a = 0;
 FtrlFloat g_b = 0;
 
-bool IsValidPath(char* path) {
+bool IsValidPath(char* path, FtrlInt length)
+{
+    if(length > PATH_MAX)
+        return false;
     return true;
 }
 
@@ -36,9 +39,9 @@ struct ChunkMeta {
 void FtrlChunk::Write()
 {
     const char* ptr = fileName.c_str();
-    char path[1024];
+    char path[PATH_MAX + 1] = {0x00};
     realpath(ptr, path);
-    if(!IsValidPath(path))
+    if (!IsValidPath(path, strlen(path)))
         exit(1);
     FILE* fBin = fopen(path, "wb");
     if (fBin == nullptr) {
@@ -62,9 +65,9 @@ void FtrlChunk::Write()
 void FtrlChunk::Read()
 {
     const char* ptr = fileName.c_str();
-    char path[1024];
+    char path[PATH_MAX + 1] = {0x00};
     realpath(ptr, path);
-    if(!IsValidPath(path))
+    if (!IsValidPath(path, strlen(path)))
         exit(1);
     FILE* fTr = fopen(path, "rb");
     if (fTr == nullptr) {
@@ -85,7 +88,8 @@ void FtrlChunk::Read()
     nodes.resize(nnz);
     nnzs.resize(l + 1);
 
-    assert(l >= 0 && l < LLONG_MAX);
+    if (!(l >= 0 && l < LLONG_MAX))
+        exit(1);
     bytes = fread(labels.data(), sizeof(FtrlFloat), l, fTr);
     bytes = fread(nnzs.data(), sizeof(FtrlInt), l + 1, fTr);
     bytes = fread(R.data(), sizeof(FtrlFloat), l, fTr);
@@ -109,18 +113,37 @@ inline bool Exists(const string& name)
     return f.good();
 }
 
-struct DiskProblemMeta {
-    FtrlLong l = 0, n = 0;
-    FtrlInt nrChunk = 0;
-};
+DiskProblemMeta FtrlData::ReadMeta()
+{
+    string metaName = fileName + ".meta";
+    const char* ptr = metaName.c_str();
+    char path[PATH_MAX + 1] = {0x00};
+    realpath(ptr, path);
+    if (!IsValidPath(path, strlen(path)))
+        exit(1);
+    FILE* fMeta = fopen(path, "rb");
+    if (fMeta == nullptr) {
+        cout << "Error" << endl;
+        exit(1);
+    }
+
+    DiskProblemMeta meta;
+
+    size_t bytes;
+    bytes = fread(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
+    bytes++;
+    fclose(fMeta);
+
+    return meta;
+}
 
 void FtrlData::WriteMeta()
 {
     string metaName = fileName + ".meta";
     const char* ptr = metaName.c_str();
-    char path[1024];
+    char path[PATH_MAX + 1] = {0x00};
     realpath(ptr, path);
-    if(!IsValidPath(path))
+    if (!IsValidPath(path, strlen(path)))
         exit(1);
     FILE* fMeta = fopen(path, "wb");
     if (fMeta == nullptr) {
@@ -134,10 +157,11 @@ void FtrlData::WriteMeta()
     meta.nrChunk = nrChunk;
 
     fwrite(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
+    fflush(fMeta);
     fclose(fMeta);
 }
 
-FtrlInt FtrlData::genChunk(ifstream& fs, FtrlChunk& chunk)
+FtrlInt FtrlData::GenChunk(ifstream& fs, FtrlChunk& chunk)
 {
     string line;
     FtrlLong i = 0;
@@ -177,7 +201,7 @@ FtrlInt FtrlData::genChunk(ifstream& fs, FtrlChunk& chunk)
             return i;
         }
     }
-    if(chunk.l > 0) {
+    if (chunk.l > 0) {
         chunk.nnz = i;
         chunk.Write();
         chunk.Clear();
@@ -190,26 +214,12 @@ void FtrlData::SplitChunks()
 {
     string metaName = fileName  +  ".meta";
     if (Exists(metaName)) {
-        const char* ptr = metaName.c_str();
-        char path[1024];
-        realpath(ptr, path);
-        if(!IsValidPath(path))
-            exit(1);
-        FILE* fMeta = fopen(path, "rb");
-        DiskProblemMeta meta;
-        if (fMeta == nullptr) {
-            cout << "Error" << endl;
-            exit(1);
-        }
-        size_t bytes;
-        bytes = fread(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
-        bytes++;
+        DiskProblemMeta meta = ReadMeta();
         l = meta.l, n = meta.n, nrChunk = meta.nrChunk;
         for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
             FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);
         }
-        fclose(fMeta);
     }
     else {
         ifstream fs(fileName);
@@ -217,9 +227,9 @@ void FtrlData::SplitChunks()
         FtrlInt chunkId = 0;
         FtrlChunk chunk(fileName, chunkId);
         nrChunk++;
-        while(true) {
-            FtrlLong i = genChunk(fs, chunk);
-            if(i == 0)
+        while (true) {
+            FtrlLong i = GenChunk(fs, chunk);
+            if (i == 0)
                 break;
             l += chunk.l;
             chunks.push_back(chunk);
@@ -229,26 +239,12 @@ void FtrlData::SplitChunks()
             chunk.nnzs.push_back(i);
             nrChunk++;
         }
-        if(chunk.l == 0) {
+        if (chunk.l == 0) {
             chunkId--;
             nrChunk--;
         }
 
-        const char* ptr = metaName.c_str();
-        char path[1024];
-        realpath(ptr, path);
-        if(!IsValidPath(path))
-            exit(1);
-        FILE* fMeta = fopen(path, "wb");
-        if (fMeta == nullptr) {
-            cout << "Error" << endl;
-            exit(1);
-        }
-        DiskProblemMeta meta;
-        meta.l = l, meta.n = n, meta.nrChunk = nrChunk;
-        fwrite(reinterpret_cast<char*>(&meta), sizeof(DiskProblemMeta), 1, fMeta);
-        fflush(fMeta);
-        fclose(fMeta);
+        WriteMeta();
     }
 }
 
@@ -325,7 +321,8 @@ void FtrlProblem::Initialize(bool norm, string warmModelPath)
 
         chunk.Read();
 
-        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
+        if (!(chunk.l >= 0 && chunk.l < LLONG_MAX))
+            exit(1);
         for (FtrlLong i = 0; i < chunk.l; i++) {
 
             for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i + 1]; s++) {
@@ -421,7 +418,7 @@ FtrlFloat FtrlProblem::WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
     return p;
 }
 
-FtrlFloat FtrlProblem::g_calAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels,\
+FtrlFloat FtrlProblem::GCalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels,\
 vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
 {
     sort(vaOrders.begin(), vaOrders.end(), [&vaScores] (FtrlInt i, FtrlInt j) {return vaScores[i] < vaScores[j];});
@@ -460,7 +457,8 @@ vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
     return auc;
 }
 
-void FtrlProblem::Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r) {
+void FtrlProblem::Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r)
+{
     bool doGrad = grad.size() > 0;
 
     FtrlInt begin, end;
@@ -497,7 +495,8 @@ FtrlFloat& auc, vector<FtrlFloat>& grad)
         iota(innerOrder.begin(), innerOrder.end(), 0);
         random_shuffle(innerOrder.begin(), innerOrder.end());
         FtrlFloat localLoss = 0.0;
-        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
+        if (!(chunk.l >= 0 && chunk.l < LLONG_MAX))
+            exit(1);
 #pragma omp parallel for schedule(static)reduction(+ : localLoss)
         for (FtrlLong ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = innerOrder[ii];
@@ -525,7 +524,7 @@ FtrlFloat& auc, vector<FtrlFloat>& grad)
         loss += localLoss;
     }
     if (doAuc)
-        auc = g_calAuc(currentData, vaLabels, vaScores, vaOrders);
+        auc = GCalAuc(currentData, vaLabels, vaScores, vaOrders);
     return loss / currentData->l;
 }
 

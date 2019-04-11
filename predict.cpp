@@ -66,13 +66,15 @@ void Predict(string testPath, string modelPath, string outputPath)
     FtrlInt nrChunk = testData->nrChunk;
     FtrlFloat localVaLoss = 0.0;
 
-    assert(nrChunk >= 0 && nrChunk < LONG_MAX);
+    if (!(nrChunk >= 0 && nrChunk < LONG_MAX))
+        exit(1);
     for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
 
         FtrlChunk chunk = testData->chunks[chunkId];
         chunk.Read();
 
-        assert(chunk.l >= 0 && chunk.l < LLONG_MAX);
+        if (!(chunk.l >= 0 && chunk.l < LLONG_MAX))
+            exit(1);
         for (FtrlInt i = 0; i < chunk.l; i++) {
 
             FtrlFloat y, wTx;

@@ -21,7 +21,7 @@ FtrlFloat g_b = 0;
 
 bool IsValidPath(char* path, FtrlInt length)
 {
-    if(length > PATH_MAX)
+    if (length > PATH_MAX)
         return false;
     return true;
 }
@@ -216,6 +216,8 @@ void FtrlData::SplitChunks()
     if (Exists(metaName)) {
         DiskProblemMeta meta = ReadMeta();
         l = meta.l, n = meta.n, nrChunk = meta.nrChunk;
+        if (!(nrChunk >= 0 && nrChunk < LONG_MAX))
+            exit(1);
         for (FtrlInt chunkId = 0; chunkId < nrChunk; chunkId++) {
             FtrlChunk chunk(fileName, chunkId);
             chunks.push_back(chunk);

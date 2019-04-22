@@ -20,7 +20,11 @@ struct Option {
     string testPath, modelPath, outputPath;
     bool error;
 
-    Option():error(false) {};
+    Option()
+    {
+        testPath = "", modelPath = "", outputPath = "";
+        error = false;
+    };
 };
 
 string PredictHelp()

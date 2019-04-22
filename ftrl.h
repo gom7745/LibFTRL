@@ -52,8 +52,11 @@ public:
     FtrlFloat l1, l2, alpha, beta;
     FtrlInt nrPass, nrThreads;
     bool normalized, verbose, freq, autoStop, noAuc, inMemory;
-    Parameter():l1(PONE), l2(PONE), alpha(PONE), beta(ONE), nrPass(ONE), nrThreads(ONE), normalized(false),\
-    verbose(true), freq(true), autoStop(false), noAuc(false), inMemory(false){};
+    Parameter()
+    {
+        l1 = ONE, l2 = ONE, alpha = ONE, beta = ONE, nrPass = ONE, nrThreads = ONE;
+        normalized = false, verbose = true, autoStop = false, noAuc = false, inMemory = false;
+    };
     ~Parameter(){};
 };
 
@@ -72,6 +75,7 @@ public:
     void Write();
     void Clear();
 
+    FtrlChunk() {};
     FtrlChunk(string dataName, FtrlInt chunkId);
     ~FtrlChunk(){};
 };
@@ -89,7 +93,12 @@ public:
 
     vector<FtrlChunk> chunks;
 
-    explicit FtrlData(string fileName): fileName(fileName), l(0), n(0), nrChunk(0) {};
+    explicit FtrlData(string fileName)
+    {
+        chunks.resize(0);
+        this->fileName = fileName;
+        l = 0, n = 0, nrChunk = 0;
+    };
     ~FtrlData(){};
     void PrFtrlIntDataInfo();
     void SplitChunks();
@@ -106,7 +115,15 @@ public:
     shared_ptr<Parameter> param;
     FtrlProblem() {};
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &testData, shared_ptr<Parameter> &param)
-        :data(data), testData(testData), param(param) {};
+    {
+        this->data = data;
+        this->testData = testData;
+        this->param = param;
+        w.resize(0);
+        z.resize(0);
+        n.resize(0);
+        f.resize(0);
+    };
     ~FtrlProblem(){};
 
 
@@ -127,7 +144,7 @@ public:
     void Validate();
 private:
     FtrlFloat WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFloat r, bool doUpdate);
-    FtrlFloat GCalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
+    FtrlFloat CalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels, vector<FtrlFloat> vaScores,\
             vector<FtrlFloat>& vaOrders);
     void Update(FtrlChunk& chunk, FtrlInt i, vector<FtrlFloat>& grad, FtrlFloat kappa, FtrlFloat r);
     FtrlFloat OneEpoch(shared_ptr<FtrlData> currentData, bool doUpdate, bool doAuc, FtrlFloat& auc,\

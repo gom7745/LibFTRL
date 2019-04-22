@@ -19,16 +19,21 @@ FtrlFloat g_l2 = 0;
 FtrlFloat g_a = 0;
 FtrlFloat g_b = 0;
 
-bool IsValidPath(char* path, FtrlInt length)
+bool IsValidPath(string path, FtrlInt length)
 {
     if (length > PATH_MAX)
         return false;
     return true;
 }
 
-FtrlChunk::FtrlChunk(string dataName, FtrlInt id): l(0), nnz(0), chunkId(id)
+FtrlChunk::FtrlChunk(string dataName, FtrlInt chunkId)
 {
-    fileName = dataName + ".bin." + to_string(id);
+    l = 0, nnz = 0, this->chunkId = chunkId;
+    fileName = dataName + ".bin." + to_string(chunkId);
+    nodes.resize(0);
+    nnzs.resize(0);
+    labels.resize(0);
+    R.resize(0);
 }
 
 struct ChunkMeta {
@@ -64,9 +69,8 @@ void FtrlChunk::Write()
 
 void FtrlChunk::Read()
 {
-    const char* ptr = fileName.c_str();
     char path[PATH_MAX + 1] = {0x00};
-    realpath(ptr, path);
+    realpath(fileName.c_str(), path);
     if (!IsValidPath(path, strlen(path)))
         exit(1);
     FILE* fTr = fopen(path, "rb");
@@ -116,9 +120,8 @@ inline bool Exists(const string& name)
 DiskProblemMeta FtrlData::ReadMeta()
 {
     string metaName = fileName + ".meta";
-    const char* ptr = metaName.c_str();
     char path[PATH_MAX + 1] = {0x00};
-    realpath(ptr, path);
+    realpath(metaName.c_str(), path);
     if (!IsValidPath(path, strlen(path)))
         exit(1);
     FILE* fMeta = fopen(path, "rb");
@@ -140,10 +143,9 @@ DiskProblemMeta FtrlData::ReadMeta()
 void FtrlData::WriteMeta()
 {
     string metaName = fileName + ".meta";
-    const char* ptr = metaName.c_str();
     char path[PATH_MAX + 1] = {0x00};
-    realpath(ptr, path);
-    if (!IsValidPath(path, strlen(path)))
+    realpath(metaName.c_str(), path);
+    if (!IsValidPath(string(path), strlen(path)))
         exit(1);
     FILE* fMeta = fopen(path, "wb");
     if (fMeta == nullptr) {
@@ -420,7 +422,7 @@ FtrlFloat FtrlProblem::WTx(FtrlChunk& chunk, FtrlInt begin, FtrlInt end, FtrlFlo
     return p;
 }
 
-FtrlFloat FtrlProblem::GCalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels,\
+FtrlFloat FtrlProblem::CalAuc(shared_ptr<FtrlData> currentData, vector<FtrlFloat>& vaLabels,\
 vector<FtrlFloat> vaScores, vector<FtrlFloat>& vaOrders)
 {
     sort(vaOrders.begin(), vaOrders.end(), [&vaScores] (FtrlInt i, FtrlInt j) {return vaScores[i] < vaScores[j];});
@@ -526,7 +528,7 @@ FtrlFloat& auc, vector<FtrlFloat>& grad)
         loss += localLoss;
     }
     if (doAuc)
-        auc = GCalAuc(currentData, vaLabels, vaScores, vaOrders);
+        auc = CalAuc(currentData, vaLabels, vaScores, vaOrders);
     return loss / currentData->l;
 }
 

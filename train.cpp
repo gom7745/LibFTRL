@@ -15,7 +15,12 @@ struct Option {
     string dataPath, testPath, modelPath, warmModelPath;
     bool error;
 
-    Option():verbose(0), solver(1), error(false) {};
+    Option():verbose(0), solver(1), error(false) {
+        param = make_shared<Parameter>();
+        verbose = 0, solver = ONE, error = false;
+        dataPath = "", testPath = "", modelPath = "", warmModelPath = "";
+        error = false;
+    };
 };
 
 string BaseName(string path)
@@ -65,7 +70,6 @@ string TrainHelp()
 Option ParseOption(FtrlInt argc, vector<string>& args)
 {
     Option option;
-    option.error = false, option.verbose = 1, option.param = make_shared<Parameter>();
     FtrlInt i = 0;
     for (i = 1; i < argc; i++) {
         if (args[i].compare("-s") == 0) {

@@ -95,5 +95,6 @@ public:
     FtrlLong load_model(string model_path);
     void fun();
     void validate();
+    void split_train();
 };
 

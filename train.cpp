@@ -198,18 +198,20 @@ int main(int argc, char *argv[])
 
         FtrlProblem prob(data, test_data, option.param);
         prob.initialize();
-        if (option.solver == 1) {
-            cout << "Solver Type: FTRL" << endl;
-            prob.solve();
-        }
-        else if (option.solver == 2) {
-            cout << "Solver Type: RDA" << endl;
-            prob.solve_rda();
-        }
-        else {
-            cout << "Solver Type: AdaGrad" << endl;
-            prob.solve_adagrad();
-        }
+        prob.split_train();
+
+        //if (option.solver == 1) {
+        //    cout << "Solver Type: FTRL" << endl;
+        //    prob.solve();
+        //}
+        //else if (option.solver == 2) {
+        //    cout << "Solver Type: RDA" << endl;
+        //    prob.solve_rda();
+        //}
+        //else {
+        //    cout << "Solver Type: AdaGrad" << endl;
+        //    prob.solve_adagrad();
+        //}
         string model_path = basename(option.data_path) + ".model";
         prob.save_model(model_path.c_str());
     }

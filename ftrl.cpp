@@ -175,6 +175,7 @@ void FtrlProblem::save_model(string model_path) {
     f.write(reinterpret_cast<char*>(w.data()), sizeof(FtrlFloat) * data->n);
     f.write(reinterpret_cast<char*>(n.data()), sizeof(FtrlFloat) * data->n);
     f.write(reinterpret_cast<char*>(z.data()), sizeof(FtrlFloat) * data->n);
+    f.write(reinterpret_cast<char*>(p.data()), sizeof(FtrlFloat) * data->n);
 }
 
 FtrlLong FtrlProblem::load_model(string model_path) {
@@ -187,9 +188,11 @@ FtrlLong FtrlProblem::load_model(string model_path) {
     w.resize(nr_feature);
     n.resize(nr_feature);
     z.resize(nr_feature);
+    p.resize(nr_feature);
     f.read(reinterpret_cast<char*>(w.data()), sizeof(FtrlFloat) * nr_feature);
     f.read(reinterpret_cast<char*>(n.data()), sizeof(FtrlFloat) * nr_feature);
     f.read(reinterpret_cast<char*>(z.data()), sizeof(FtrlFloat) * nr_feature);
+    f.read(reinterpret_cast<char*>(p.data()), sizeof(FtrlFloat) * nr_feature);
 
     return nr_feature;
 }
@@ -202,10 +205,11 @@ void FtrlProblem::save_model_txt(string model_path) {
     FtrlFloat *wa = w.data();
     FtrlFloat *na = n.data();
     FtrlFloat *za = z.data();
+    FtrlFloat *pa = p.data();
     char buffer[1024];
-    for (FtrlInt j = 0; j < data->n; j++, wa++, na++, za++)
+    for (FtrlInt j = 0; j < data->n; j++, wa++, na++, za++, pa++)
     {
-        sprintf(buffer, "w%ld %lf %lf %lf", j, *wa, *na, *za);
+        sprintf(buffer, "w%ld %lf %lf %lf %lf", j, *wa, *na, *za, *pa);
         f_out << buffer << endl;
     }
     f_out.close();
@@ -218,15 +222,21 @@ FtrlLong FtrlProblem::load_model_txt(string model_path) {
     string dummy;
     FtrlLong nr_feature;
 
-    f_in >> dummy >> dummy >> dummy >> nr_feature;
+    f_in >> dummy >> normalization >> dummy >> nr_feature;
     w.resize(nr_feature);
+    n.resize(nr_feature);
+    z.resize(nr_feature);
+    p.resize(nr_feature);
 
 
-    FtrlFloat *ptr = w.data();
-    for(FtrlLong j = 0; j < nr_feature; j++, ptr++)
+    FtrlFloat *pw = w.data();
+    FtrlFloat *pn = n.data();
+    FtrlFloat *pz = z.data();
+    FtrlFloat *pp = p.data();
+    for(FtrlLong j = 0; j < nr_feature; j++, pw++, pn++, pz++, pp++)
     {
         f_in >> dummy;
-        f_in >> *ptr;
+        f_in >> *pw >> *pn >> *pz >> *pp;
     }
     return nr_feature;
 }
@@ -238,25 +248,28 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
         w.resize(data->n, 0);
         z.resize(data->n, 0);
         n.resize(data->n, 0);
+        p.resize(data->n, 0);
     }
     else {
         ifstream f_in(warm_model_path);
         string dummy;
         FtrlLong nr_feature;
-        f_in >> dummy >> dummy >> dummy >> nr_feature;
+        f_in >> dummy >> normalization >> dummy >> nr_feature;
         if(nr_feature >= data->n) {
             feats = nr_feature;
             w.resize(nr_feature, 0);
             z.resize(nr_feature, 0);
             n.resize(nr_feature, 0);
+            p.resize(nr_feature, 0);
             FtrlFloat *wptr = w.data();
             FtrlFloat *nptr = n.data();
             FtrlFloat *zptr = z.data();
+            FtrlFloat *pptr = p.data();
 
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
+            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++, pptr++)
             {
                 f_in >> dummy;
-                f_in >> *wptr >> *nptr >> *zptr;
+                f_in >> *wptr >> *nptr >> *zptr >> *pptr;
             }
         }
         else {
@@ -264,17 +277,19 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
             w.resize(data->n);
             z.resize(data->n);
             n.resize(data->n);
+            p.resize(data->n);
             FtrlFloat *wptr = w.data();
             FtrlFloat *nptr = n.data();
             FtrlFloat *zptr = z.data();
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
+            FtrlFloat *pptr = p.data();
+            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++, pptr++)
             {
                 if(j < nr_feature) {
                     f_in >> dummy;
-                    f_in >> *wptr >> *nptr >> *zptr;
+                    f_in >> *wptr >> *nptr >> *zptr >> *pptr;
                 }
                 else {
-                    *wptr = 0; *nptr = 0; *zptr = 0;
+                    *wptr = 0; *nptr = 0; *zptr = 0, *pptr = 0;
                 }
             }
         }
@@ -618,12 +633,14 @@ void FtrlProblem::fun() {
 
 void FtrlProblem::solve() {
     print_header_info();
-    FtrlInt nr_chunk = data->nr_chunk;
-    FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
+    FtrlInt nr_chunk = data->nr_chunk, time = param->time;
+    FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta, r = param->rho;
+    FtrlFloat rt = pow(r, time);
     FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
     vector<FtrlFloat> prev_w(data->n, 0);
     vector<FtrlFloat> prev_n(data->n, 0);
     vector<FtrlFloat> prev_z(data->n, 0);
+    vector<FtrlFloat> prev_p(data->n, 0);
 
     for (t = 0; t < param->nr_pass; t++) {
         vector<FtrlInt> outer_order(nr_chunk);
@@ -646,10 +663,10 @@ void FtrlProblem::solve() {
                 for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
                     Node x = chunk.nodes[s];
                     FtrlInt idx = x.idx;
-                    FtrlFloat val = x.val*r, zi = z[idx], ni = n[idx];
+                    FtrlFloat val = x.val*r, zi = z[idx], pi = p[idx];
 
                     if (abs(zi) > l1*f[idx]) {
-                        w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
+                        w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+pi)/a+l2*f[idx]);
                     }
                     else {
                         w[idx] = 0;
@@ -676,8 +693,10 @@ void FtrlProblem::solve() {
                     FtrlInt idx = x.idx;
                     FtrlFloat val = x.val*r, g = kappa*val, theta=0;
                     g_norm += g*g;
-                    theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
-                    z[idx] += g-theta*w[idx];
+                    FtrlFloat sqrt_g_diff = sqrt(n[idx]+g*g)-sqrt(n[idx]);
+                    theta = 1/a*(sqrt_g_diff);
+                    p[idx] += rt * sqrt_g_diff;
+                    z[idx] += rt * (g-theta*w[idx]);
                     n[idx] += g*g;
                 }
                 //printf("%d:g_norm=%lf\n", ind++, sqrt(g_norm));

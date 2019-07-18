@@ -33,10 +33,10 @@ public:
 class Parameter {
 
 public:
-    FtrlFloat l1, l2, alpha, beta;
-    FtrlInt nr_pass = 20, nr_threads = 1;
+    FtrlFloat l1, l2, alpha, beta, rho;
+    FtrlInt nr_pass = 20, nr_threads = 1, time = 0;
     bool normalized, verbose, freq, auto_stop, no_auc, in_memory;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(true), auto_stop(false), no_auc(false), in_memory(false){};
+    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), rho(1), normalized(false), verbose(true), freq(true), auto_stop(false), no_auc(false), in_memory(false){};
 };
 
 class FtrlChunk {
@@ -86,8 +86,8 @@ public:
         :data(data), test_data(test_data), param(param) {};
 
 
-    vector<FtrlFloat> w, z, n, f;
-	bool normlization = false;
+    vector<FtrlFloat> w, z, n, p, f;
+	bool normalization = false;
     FtrlInt t = 10;
 	FtrlLong feats = 0;
     FtrlFloat tr_loss = 0.0f, va_loss = 0.0f, va_auc = 0.0f, fun_val = 0.0f, gnorm = 0.0f, reg = 0.0f;

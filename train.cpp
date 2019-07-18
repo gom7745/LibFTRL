@@ -46,15 +46,17 @@ string train_help()
     "     0 -- AdaGrad framework\n"
     "     1 -- FTRL framework\n"
     "     2 -- RDA framework\n"
-    "-a <alpha>: set initial learning rate\n"
-    "-b <beta>: set shrinking base for learning rate schedule\n"
+    "-a <alpha>: set initial learning rate (default 0.1)\n"
+    "-b <beta>: set shrinking base for learning rate schedule (default 1.0)\n"
+    "-r <rho>: set shrinking base for time schedule (default 1.0)\n"
     "-l1 <lambda_1>: set regularization coefficient on l1 regularizer (default 0.1)\n"
     "-l2 <lambda_2>: set regularization coefficient on l2 regularizer (default 0.1)\n"
     "-t <iter>: set number of iterations (default 20)\n"
     "-p <path>: set path to test set\n"
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
-    "--norm: Apply instance-wise normlization.\n"
+    "-time <time>: exponent of rho\n"
+    "--norm: Apply instance-wise normalization.\n"
     "--no-auc: disable auc\n"
     "--in-memory: keep data in memroy\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
@@ -139,6 +141,15 @@ Option parse_option(int argc, char **argv)
                 throw invalid_argument("-c should be followed by a number");
             option.param->beta = atof(argv[i]);
         }
+        else if(args[i].compare("-r") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("missing core numbers after -c");
+            i++;
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-r should be followed by a number");
+            option.param->rho = atof(argv[i]);
+        }
         else if(args[i].compare("-c") == 0)
         {
             if((i+1) >= argc)
@@ -147,6 +158,15 @@ Option parse_option(int argc, char **argv)
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-c should be followed by a number");
             option.param->nr_threads = atof(argv[i]);
+        }
+        else if(args[i].compare("-time") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("missing exponent after -time");
+            i++;
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-time should be followed by a number");
+            option.param->time = atof(argv[i]);
         }
         else if(args[i].compare("-p") == 0)
         {
@@ -242,7 +262,7 @@ int main(int argc, char *argv[])
             cout << "Solver Type: AdaGrad" << endl;
             prob.solve_adagrad();
         }
-        prob.save_model(option.model_path);
+        prob.save_model_txt(option.model_path);
     }
     catch (invalid_argument &e)
     {

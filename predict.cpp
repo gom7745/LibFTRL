@@ -48,7 +48,7 @@ Option parse_option(int argc, char **argv)
 void predict(string test_path, string model_path, string output_path)
 {
     FtrlProblem prob;
-    FtrlLong n = prob.load_model(model_path);
+    FtrlLong n = prob.load_model_txt(model_path);
     ofstream f_out(output_path);
 
     shared_ptr<FtrlData> test_data = make_shared<FtrlData>(test_path);
@@ -68,13 +68,14 @@ void predict(string test_path, string model_path, string output_path)
 
             FtrlFloat y = chunk.labels[i], wTx = 0;
 
+            FtrlFloat r=prob.normalization ? chunk.R[i]:1;
             for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
                 Node x = chunk.nodes[s];
                 FtrlInt idx = x.idx;
                 if (idx > n) {
                     continue;
                 }
-                FtrlFloat val = x.val;
+                FtrlFloat val = x.val*r;
                 wTx += prob.w[idx]*val;
             }
 
@@ -86,7 +87,7 @@ void predict(string test_path, string model_path, string output_path)
             }
             else {
                 exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m); 
+                local_va_loss += -y*wTx+log(1+exp_m);
             }
             f_out << 1/(1+exp(-wTx)) << "\n";
         }

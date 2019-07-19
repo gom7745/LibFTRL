@@ -87,7 +87,7 @@ public:
 
 
     vector<FtrlFloat> w, z, n, f;
-	bool normlization = false;
+	bool normalization = false;
     FtrlInt t = 10;
 	FtrlLong feats = 0;
     FtrlFloat tr_loss = 0.0f, va_loss = 0.0f, va_auc = 0.0f, fun_val = 0.0f, gnorm = 0.0f, reg = 0.0f;

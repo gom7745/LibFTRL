@@ -218,7 +218,7 @@ FtrlLong FtrlProblem::load_model_txt(string model_path) {
     string dummy;
     FtrlLong nr_feature;
 
-    f_in >> dummy >> dummy >> dummy >> nr_feature;
+    f_in >> dummy >> normalization >> dummy >> nr_feature;
     w.resize(nr_feature);
 
 

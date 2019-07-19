@@ -86,7 +86,7 @@ void predict(string test_path, string model_path, string output_path)
             }
             else {
                 exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m); 
+                local_va_loss += -y*wTx+log(1+exp_m);
             }
             f_out << 1/(1+exp(-wTx)) << "\n";
         }

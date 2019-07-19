@@ -54,7 +54,7 @@ string train_help()
     "-p <path>: set path to test set\n"
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
-    "--norm: Apply instance-wise normlization.\n"
+    "--norm: Apply instance-wise normalization.\n"
     "--no-auc: disable auc\n"
     "--in-memory: keep data in memroy\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"

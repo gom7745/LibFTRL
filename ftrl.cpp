@@ -220,14 +220,18 @@ FtrlLong FtrlProblem::load_model_txt(string model_path) {
 
     f_in >> dummy >> normalization >> dummy >> nr_feature;
     w.resize(nr_feature);
+    z.resize(nr_feature);
+    n.resize(nr_feature);
+    FtrlFloat *wptr = w.data();
+    FtrlFloat *nptr = n.data();
+    FtrlFloat *zptr = z.data();
 
-
-    FtrlFloat *ptr = w.data();
-    for(FtrlLong j = 0; j < nr_feature; j++, ptr++)
+    for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
     {
         f_in >> dummy;
-        f_in >> *ptr;
+        f_in >> *wptr >> *nptr >> *zptr;
     }
+
     return nr_feature;
 }
 
@@ -242,40 +246,21 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
     else {
         ifstream f_in(warm_model_path);
         string dummy;
-        FtrlLong nr_feature;
-        f_in >> dummy >> dummy >> dummy >> nr_feature;
+        FtrlLong nr_feature = load_model_txt(warm_model_path);
         if(nr_feature >= data->n) {
             feats = nr_feature;
-            w.resize(nr_feature, 0);
-            z.resize(nr_feature, 0);
-            n.resize(nr_feature, 0);
-            FtrlFloat *wptr = w.data();
-            FtrlFloat *nptr = n.data();
-            FtrlFloat *zptr = z.data();
-
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
-            {
-                f_in >> dummy;
-                f_in >> *wptr >> *nptr >> *zptr;
-            }
         }
         else {
             feats = data->n;
             w.resize(data->n);
             z.resize(data->n);
             n.resize(data->n);
-            FtrlFloat *wptr = w.data();
-            FtrlFloat *nptr = n.data();
-            FtrlFloat *zptr = z.data();
-            for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
+            FtrlFloat *wptr = &w[nr_feature];
+            FtrlFloat *nptr = &n[nr_feature];
+            FtrlFloat *zptr = &z[nr_feature];
+            for(FtrlLong j = nr_feature; j < data->n; j++, wptr++, nptr++, zptr++)
             {
-                if(j < nr_feature) {
-                    f_in >> dummy;
-                    f_in >> *wptr >> *nptr >> *zptr;
-                }
-                else {
-                    *wptr = 0; *nptr = 0; *zptr = 0;
-                }
+                *wptr = 0; *nptr = 0; *zptr = 0;
             }
         }
     }
@@ -355,6 +340,49 @@ void FtrlProblem::print_epoch_info() {
     cout << endl;
 }
 
+FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders) {
+    FtrlFloat auc = 0.0;
+    sort(va_orders.begin(), va_orders.end(), [&va_scores] (FtrlInt i, FtrlInt j) {return va_scores[i] < va_scores[j];});
+
+    FtrlFloat prev_score = va_scores[0];
+    FtrlLong M = 0, N = 0;
+    FtrlLong begin = 0, stuck_pos = 0, stuck_neg = 0;
+    FtrlFloat sum_pos_rank = 0;
+
+    FtrlLong l = va_labels.size();
+    for (FtrlInt i = 0; i < l; i++)
+    {
+        FtrlInt sorted_i = va_orders[i];
+
+        FtrlFloat score = va_scores[sorted_i];
+
+        if (score != prev_score)
+        {
+            sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
+            prev_score = score;
+            begin = i;
+            stuck_neg = 0;
+            stuck_pos = 0;
+        }
+
+        FtrlFloat label = va_labels[sorted_i];
+
+        if (label > 0)
+        {
+            M++;
+            stuck_pos ++;
+        }
+        else
+        {
+            N++;
+            stuck_neg ++;
+        }
+    }
+    sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
+    auc = (sum_pos_rank - 0.5*M*(M+1)) / (M*N);
+
+    return auc;
+}
 
 void FtrlProblem::validate() {
     FtrlInt nr_chunk = test_data->nr_chunk, global_i = 0;
@@ -400,43 +428,11 @@ void FtrlProblem::validate() {
     }
     va_loss = local_va_loss / test_data->l;
 
-    sort(va_orders.begin(), va_orders.end(), [&va_scores] (FtrlInt i, FtrlInt j) {return va_scores[i] < va_scores[j];});
-
-    FtrlFloat prev_score = va_scores[0];
-    FtrlLong M = 0, N = 0;
-    FtrlLong begin = 0, stuck_pos = 0, stuck_neg = 0;
-    FtrlFloat sum_pos_rank = 0;
-
-    for (FtrlInt i = 0; i < test_data->l; i++)
-    {
-        FtrlInt sorted_i = va_orders[i];
-
-        FtrlFloat score = va_scores[sorted_i];
-
-        if (score != prev_score)
-        {
-            sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
-            prev_score = score;
-            begin = i;
-            stuck_neg = 0;
-            stuck_pos = 0;
-        }
-
-        FtrlFloat label = va_labels[sorted_i];
-
-        if (label > 0)
-        {
-            M++;
-            stuck_pos ++;
-        }
-        else
-        {
-            N++;
-            stuck_neg ++;
-        }
-    }
-    sum_pos_rank += stuck_pos*(begin+begin-1+stuck_pos+stuck_neg)*0.5;
-    va_auc = (sum_pos_rank - 0.5*M*(M+1)) / (M*N);
+    if(param->no_auc)
+        va_auc = 0;
+    else
+        va_auc = cal_auc(va_labels, va_scores, va_orders);
+    return;
 }
 
 void FtrlProblem::solve_adagrad() {

@@ -107,3 +107,5 @@ public:
     void validate();
 };
 
+FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders);
+

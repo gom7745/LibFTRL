@@ -242,7 +242,7 @@ int main(int argc, char *argv[])
             cout << "Solver Type: AdaGrad" << endl;
             prob.solve_adagrad();
         }
-        prob.save_model(option.model_path);
+        prob.save_model_txt(option.model_path);
     }
     catch (invalid_argument &e)
     {

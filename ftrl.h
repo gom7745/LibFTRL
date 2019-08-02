@@ -36,7 +36,7 @@ public:
     FtrlFloat l1, l2, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1;
     bool normalized, verbose, freq, auto_stop, no_auc, in_memory;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(true), auto_stop(false), no_auc(false), in_memory(false){};
+    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false){};
 };
 
 class FtrlChunk {

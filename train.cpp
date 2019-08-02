@@ -55,6 +55,7 @@ string train_help()
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
     "--norm: Apply instance-wise normalization.\n"
+    "--freq: Apply frequency calibrated regularization.\n"
     "--no-auc: disable auc\n"
     "--in-memory: keep data in memroy\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
@@ -168,13 +169,13 @@ Option parse_option(int argc, char **argv)
         {
             option.param->normalized = true;
         }
-        else if(args[i].compare("--verbose") == 0)
-        {
-            option.param->verbose = true;
-        }
         else if(args[i].compare("--freq") == 0)
         {
             option.param->freq = true;
+        }
+        else if(args[i].compare("--verbose") == 0)
+        {
+            option.param->verbose = true;
         }
         else if(args[i].compare("--auto-stop") == 0)
         {

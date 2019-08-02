@@ -286,9 +286,9 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
     }
     for (FtrlInt j = 0; j < data->n; j++) {
         if (param->freq)
-            f[j]  = 1;
-        else
             f[j]  = 1/f[j];
+        else
+            f[j]  = 1;
     }
     start_time = omp_get_wtime();
 }

@@ -35,8 +35,8 @@ class Parameter {
 public:
     FtrlFloat l1, l2, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1;
-    bool normalized, verbose, freq, auto_stop, no_auc, in_memory;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false){};
+    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass;
+    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false){};
 };
 
 class FtrlChunk {
@@ -64,6 +64,7 @@ public:
     FtrlLong l, n;
     FtrlInt nr_chunk;
     string meta_name;
+    string profile_name;
 
     vector<FtrlChunk> chunks;
 
@@ -74,6 +75,7 @@ public:
     void split_chunks();
     void write_meta();
     void read_meta();
+    void parse_profile(string profile_name);
 };
 
 class FtrlProblem {
@@ -97,6 +99,7 @@ public:
     void solve();
     void solve_adagrad();
     void solve_rda();
+    void split_train();
     void print_epoch_info();
     void print_header_info();
     void save_model(string model_path);

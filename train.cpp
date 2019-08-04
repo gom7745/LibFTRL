@@ -11,7 +11,7 @@ struct Option
 {
     shared_ptr<Parameter> param;
     FtrlInt verbose, solver;
-    string data_path, test_path, model_path, warm_model_path;
+    string data_path, test_path, model_path, warm_model_path, data_profile, test_profile;
 };
 
 string basename(string path)
@@ -39,7 +39,7 @@ bool is_numerical(char *str)
 string train_help()
 {
     return string(
-    "usage: train [options] training_set_file test_set_file\n"
+    "usage: train [options] training_set_file training_set_profile [model_file]\n"
     "\n"
     "options:\n"
     "-s <solver>: set solver type (default 1)\n"
@@ -54,10 +54,13 @@ string train_help()
     "-p <path>: set path to test set\n"
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
+    "-dp <path>: set path to data profile\n"
+    "-tp <path>: set path to test profile\n"
     "--norm: Apply instance-wise normalization.\n"
     "--freq: Apply frequency calibrated regularization.\n"
     "--no-auc: disable auc\n"
     "--in-memory: keep data in memroy\n"
+    "--one-pass: train wihtout generate binary files\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
 }
@@ -157,6 +160,22 @@ Option parse_option(int argc, char **argv)
 
             option.test_path = string(args[i]);
         }
+        else if(args[i].compare("-dp") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -dp");
+            i++;
+
+            option.data_profile = string(args[i]);
+        }
+        else if(args[i].compare("-tp") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -tp");
+            i++;
+
+            option.test_profile = string(args[i]);
+        }
         else if(args[i].compare("-m") == 0)
         {
             if(i == argc-1)
@@ -189,15 +208,20 @@ Option parse_option(int argc, char **argv)
         {
             option.param->in_memory = true;
         }
+        else if(args[i].compare("--one-pass") == 0)
+        {
+            option.param->one_pass = true;
+        }
         else
         {
             break;
         }
     }
 
-    if(i != argc-2 && i != argc-1)
+    if(i != argc-3 && i != argc-2)
         throw invalid_argument("cannot parse commmand\n");
     option.data_path = string(args[i++]);
+    option.data_profile = string(args[i++]);
 
     if(i < argc) {
         option.model_path = string(args[i]);
@@ -219,12 +243,18 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
-        data->split_chunks();
+        if(option.param->one_pass)
+            data->parse_profile(option.data_profile);
+        else
+            data->split_chunks();
         cout << "Tr_data: ";
         data->print_data_info();
 
         if (!test_data->file_name.empty()) {
-            test_data->split_chunks();
+            if(option.param->one_pass)
+                test_data->parse_profile(option.test_profile);
+            else
+                test_data->split_chunks();
             cout << "Va_data: ";
             test_data->print_data_info();
         }
@@ -233,7 +263,10 @@ int main(int argc, char *argv[])
         prob.initialize(option.param->normalized, option.warm_model_path);
         if (option.solver == 1) {
             cout << "Solver Type: FTRL" << endl;
-            prob.solve();
+            if(option.param->one_pass)
+                prob.split_train();
+            else
+                prob.solve();
         }
         else if (option.solver == 2) {
             cout << "Solver Type: RDA" << endl;

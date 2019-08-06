@@ -7,13 +7,16 @@ CXXFLAGS += -fopenmp
 
 all: train predict
 
-train: train.cpp ftrl.o
+train: train.cpp ftrl.o tools.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-predict: predict.cpp ftrl.o
+predict: predict.cpp ftrl.o tools.o
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
-ffm.o: ftrl.cpp ftrl.h
+ftrl.o: ftrl.cpp ftrl.h
+	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $<
+
+tools.o: tools.cpp tools.h
 	$(CXX) $(CXXFLAGS) $(DFLAG) -c -o $@ $<
 
 clean:

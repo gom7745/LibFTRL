@@ -93,9 +93,20 @@ void FtrlData::parse_profile(string profile_name) {
     ifstream fs(profile_name);
 
     string line, dummy;
-    getline(fs, line);
-    istringstream iss(line);
-    iss >> dummy >> this->n;
+    fs >> dummy >> this->n;
+    fs >> dummy >> this->weighted;
+    FtrlInt length;
+    FtrlFloat reweight, sum_reweight = 0;
+    while(fs >> length >> reweight) {
+        this->length.push_back(length);
+        this->weight.push_back(reweight);
+        sum_reweight += reweight;
+    }
+
+    for(unsigned int i=0;i<this->weight.size();i++) {
+        this->weight[i] = sum_reweight / this->weight[i];
+        this->sum_weight += this->weight[i];
+    }
 }
 
 void FtrlData::split_chunks() {
@@ -181,6 +192,7 @@ void FtrlProblem::split_train() {
         vector<FtrlFloat> ls(num_of_threads);
         fill(ls.begin(), ls.end(), 0);
         string tmp;
+        FtrlLong global_i = 0;
         while (getline(fs, tmp)) {
             lines[0] = tmp;
             for(int j=1;j < num_of_threads;j++) {
@@ -209,7 +221,6 @@ void FtrlProblem::split_train() {
                 FtrlFloat val = 0;
 
                 char dummy;
-                FtrlInt max_nnz = 0;
                 while (iss >> idx >> dummy >> val) {
                     if (ns[j] < idx+1) {
                         ns[j] = idx+1;
@@ -236,17 +247,18 @@ void FtrlProblem::split_train() {
                     }
                     wTx += w[idx]*val;
                 }
-                FtrlFloat exp_m, tmp;
+                FtrlFloat exp_m, tmp, weight;
+                weight = data->weighted ? data->weight[global_i + j]:1;
 
                 if (wTx*y > 0) {
                     exp_m = exp(-y*wTx);
-                    tmp = exp_m/(1+exp_m);
-                    local_loss += log(1+exp_m);
+                    tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
+                    local_loss += log(1+exp_m) * weight / data->sum_weight;
                 }
                 else {
                     exp_m = exp(y*wTx);
-                    tmp = 1/(1+exp_m);
-                    local_loss += -y*wTx+log(1+exp_m);
+                    tmp = 1/(1+exp_m) * weight / data->sum_weight;
+                    local_loss += -y*wTx+log(1+exp_m) * weight / data->sum_weight;
                 }
 
                 if(update) {
@@ -263,6 +275,7 @@ void FtrlProblem::split_train() {
                 }
             }
             loss += local_loss;
+            global_i += num_of_threads;
         }
         FtrlLong l = 0;
         for(auto ll:ls) {
@@ -532,15 +545,16 @@ void FtrlProblem::validate() {
             va_orders[global_i+i] = global_i+i;
             va_labels[global_i+i] = y;
 
-            FtrlFloat exp_m;
+            FtrlFloat exp_m, weight;
+            weight = test_data->weighted ? test_data->weight[global_i + i]:1;
 
             if (wTx*y > 0) {
                 exp_m = exp(-y*wTx);
-                local_va_loss += log(1+exp_m);
+                local_va_loss += log(1+exp_m) * weight / test_data->sum_weight;
             }
             else {
                 exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m);
+                local_va_loss += -y*wTx+log(1+exp_m) * weight / test_data->sum_weight;
             }
         }
         global_i += chunk.l;
@@ -669,7 +683,7 @@ void FtrlProblem::solve_rda() {
 void FtrlProblem::fun() {
     FtrlFloat l1 = param->l1, l2 = param->l2;
     vector<FtrlFloat> grad(data->n, 0);
-    FtrlInt nr_chunk = data->nr_chunk;
+    FtrlInt nr_chunk = data->nr_chunk, global_i = 0;
     fun_val = 0.0, tr_loss = 0.0, gnorm = 0.0, reg = 0.0;
     for (FtrlInt chunk_id = 0; chunk_id < nr_chunk; chunk_id++) {
 
@@ -693,17 +707,18 @@ void FtrlProblem::fun() {
                 wTx += w[idx]*val;
             }
 
-            FtrlFloat exp_m, tmp;
+            FtrlFloat exp_m, tmp, weight;
+            weight = data->weighted ? data->weight[global_i + i]:1;
 
             if (wTx*y > 0) {
                 exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m);
-                local_tr_loss += log(1+exp_m);
+                tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
+                local_tr_loss += log(1+exp_m) * weight / data->sum_weight;
             }
             else {
                 exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m);
-                local_tr_loss += -y*wTx+log(1+exp_m);
+                tmp = 1/(1+exp_m) * weight / data->sum_weight;
+                local_tr_loss += -y*wTx+log(1+exp_m) * weight / data->sum_weight;
             }
 
             FtrlFloat kappa = -y*tmp;
@@ -716,6 +731,7 @@ void FtrlProblem::fun() {
             }
         }
         tr_loss += local_tr_loss;
+        global_i += chunk.l;
         if(!param->in_memory)
             chunk.clear();
     }
@@ -730,7 +746,7 @@ void FtrlProblem::fun() {
 
 void FtrlProblem::solve() {
     print_header_info();
-    FtrlInt nr_chunk = data->nr_chunk;
+    FtrlInt nr_chunk = data->nr_chunk, global_i = 0;
     FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
     FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
     vector<FtrlFloat> prev_w(data->n, 0);
@@ -769,15 +785,16 @@ void FtrlProblem::solve() {
                     wTx += w[idx]*val;
                 }
 
-                FtrlFloat exp_m, tmp;
+                FtrlFloat exp_m, tmp, weight;
+                weight = data->weighted ? data->weight[global_i + i]:1;
 
                 if (wTx*y > 0) {
                     exp_m = exp(-y*wTx);
-                    tmp = exp_m/(1+exp_m);
+                    tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
                 }
                 else {
                     exp_m = exp(y*wTx);
-                    tmp = 1/(1+exp_m);
+                    tmp = 1/(1+exp_m) * weight / data->sum_weight;
                 }
 
                 FtrlFloat kappa = -y*tmp;
@@ -793,6 +810,7 @@ void FtrlProblem::solve() {
                     n[idx] += g*g;
                 }
             }
+            global_i += chunk.l;
             if(!param->in_memory)
                 chunk.clear();
         }

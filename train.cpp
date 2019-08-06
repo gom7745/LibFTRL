@@ -3,6 +3,7 @@
 #include <stdexcept>
 
 #include "ftrl.h"
+#include "tools.h"
 
 #include <fenv.h>
 
@@ -11,7 +12,7 @@ struct Option
 {
     shared_ptr<Parameter> param;
     FtrlInt verbose, solver;
-    string data_path, test_path, model_path, warm_model_path, data_profile, test_profile;
+    string data_path, test_path, model_path, warm_model_path, data_profile, test_profile, featmap_path, pos_bias_map_path;
 };
 
 string basename(string path)
@@ -54,6 +55,7 @@ string train_help()
     "-p <path>: set path to test set\n"
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
+    "-fm <path>: set path to featuremap\n"
     "-dp <path>: set path to data profile\n"
     "-tp <path>: set path to test profile\n"
     "--norm: Apply instance-wise normalization.\n"
@@ -61,6 +63,7 @@ string train_help()
     "--no-auc: disable auc\n"
     "--in-memory: keep data in memroy\n"
     "--one-pass: train wihtout generate binary files\n"
+    "--weight: train with weighted instance\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
 }
@@ -160,6 +163,14 @@ Option parse_option(int argc, char **argv)
 
             option.test_path = string(args[i]);
         }
+        else if(args[i].compare("-fm") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -fm");
+            i++;
+
+            option.featmap_path = string(args[i]);
+        }
         else if(args[i].compare("-dp") == 0)
         {
             if(i == argc-1)
@@ -212,16 +223,19 @@ Option parse_option(int argc, char **argv)
         {
             option.param->one_pass = true;
         }
+        else if(args[i].compare("--weight") == 0)
+        {
+            option.param->weight = true;
+        }
         else
         {
             break;
         }
     }
 
-    if(i != argc-3 && i != argc-2)
+    if(i != argc-2 && i != argc-1)
         throw invalid_argument("cannot parse commmand\n");
     option.data_path = string(args[i++]);
-    option.data_profile = string(args[i++]);
 
     if(i < argc) {
         option.model_path = string(args[i]);
@@ -243,20 +257,25 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
-        if(option.param->one_pass)
+        if(!option.data_profile.empty())
             data->parse_profile(option.data_profile);
-        else
+        if (!option.param->one_pass)
             data->split_chunks();
         cout << "Tr_data: ";
         data->print_data_info();
 
         if (!test_data->file_name.empty()) {
-            if(option.param->one_pass)
+            if(!option.test_profile.empty())
                 test_data->parse_profile(option.test_profile);
-            else
+            if(!option.param->one_pass)
                 test_data->split_chunks();
             cout << "Va_data: ";
             test_data->print_data_info();
+        }
+        if(!option.featmap_path.empty()) {
+            map<FtrlLong, string> pos_featmap = get_pos_featmap(option.featmap_path);
+            data->pos_featmap = make_shared<map<FtrlLong, string>> (pos_featmap);
+            test_data->pos_featmap = make_shared<map<FtrlLong, string>> (pos_featmap);
         }
 
         FtrlProblem prob(data, test_data, option.param);

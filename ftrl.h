@@ -1,3 +1,6 @@
+#ifndef FTRL_H
+#define FTRL_H
+
 #include <vector>
 #include <algorithm>
 #include <string>
@@ -10,6 +13,7 @@
 #include <cstdio>
 #include <iomanip>
 #include <cstring>
+#include <map>
 
 #include "omp.h"
 
@@ -35,8 +39,8 @@ class Parameter {
 public:
     FtrlFloat l1, l2, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1;
-    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false){};
+    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight;
+    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false){};
 };
 
 class FtrlChunk {
@@ -65,10 +69,15 @@ public:
     FtrlInt nr_chunk;
     string meta_name;
     string profile_name;
+    bool weighted;
 
     vector<FtrlChunk> chunks;
+    shared_ptr<map<FtrlLong, string>> pos_featmap;
+    vector<FtrlInt> length;
+    vector<FtrlFloat> weight;
+    FtrlFloat sum_weight;
 
-    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0) {
+    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0), sum_weight(0) {
         meta_name = file_name + ".meta";
     };
     void print_data_info();
@@ -111,4 +120,4 @@ public:
 };
 
 FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders);
-
+#endif

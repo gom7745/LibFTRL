@@ -1,5 +1,84 @@
 #include "ftrl.h"
 
+FtrlFloat CausE_one_epoch(FtrlProblem &prob, FtrlProblem &prob_r, shared_ptr<FtrlData> &data, bool update) {
+    FtrlFloat l1 = prob.param->l1, l2 = prob.param->l2, l3 = prob.param->l3, a = prob.param->alpha, b = prob.param->beta;
+    FtrlInt global_i = 0;
+    vector<FtrlFloat> &w = prob.w, &z = prob.z, &n = prob.n, &f = prob.f;
+    vector<FtrlFloat> &w_r = prob_r.w; //&z_r = prob_r.z, &n_r = prob_r.n, &f_r = prob_r.f;
+    vector<FtrlInt> outer_order(data->nr_chunk);
+    iota(outer_order.begin(), outer_order.end(), 0);
+    random_shuffle(outer_order.begin(),outer_order.end());
+    FtrlFloat loss = 0.0;
+    for (auto chunk_id:outer_order) {
+        FtrlChunk chunk = data->chunks[chunk_id];
+        if(!prob.param->in_memory)
+            chunk.read();
+        vector<FtrlInt> inner_oder(chunk.l);
+        iota(inner_oder.begin(), inner_oder.end(),0);
+        random_shuffle(inner_oder.begin(), inner_oder.end());
+        FtrlFloat local_loss = 0.0;
+
+#pragma omp parallel for schedule(guided) reduction(+: local_loss)
+        for (FtrlInt ii = 0; ii < chunk.l; ii++) {
+            FtrlInt i = inner_oder[ii];
+            FtrlFloat y=chunk.labels[i], wTx=0;
+            FtrlFloat r=prob.param->normalized ? chunk.R[i]:1;
+
+            for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+                Node x = chunk.nodes[s];
+                FtrlInt idx = x.idx;
+                FtrlFloat val = x.val*r, zi = z[idx], ni = n[idx];
+                FtrlFloat cond = zi - l3*w_r[idx];
+                if(update) {
+                    if (abs(cond) > l1*f[idx]) {
+                        w[idx] = -(cond-(2*(cond>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
+                    }
+                    else {
+                        w[idx] = 0;
+                    }
+                }
+                wTx += w[idx]*val;
+            }
+
+            FtrlFloat exp_m, tmp, weight;
+            if(data->weighted)
+                weight = data->weight[global_i + i] / data->sum_weight;
+            else
+                weight = 1;
+
+            if (wTx*y > 0) {
+                exp_m = exp(-y*wTx);
+                tmp = exp_m/(1+exp_m) * weight;
+                local_loss += log(1+exp_m) * weight;
+            }
+            else {
+                exp_m = exp(y*wTx);
+                tmp = 1/(1+exp_m) * weight;
+                local_loss += -y*wTx+log(1+exp_m) * weight;
+            }
+
+            FtrlFloat kappa = -y*tmp;
+
+            if(update) {
+                FtrlFloat g_norm = 0;
+                for (FtrlInt s = chunk.nnzs[i]; s < chunk.nnzs[i+1]; s++) {
+                    Node x = chunk.nodes[s];
+                    FtrlInt idx = x.idx;
+                    FtrlFloat val = x.val*r, g = kappa*val, theta=0;
+                    g_norm += g*g;
+                    theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
+                    z[idx] += g-theta*w[idx];
+                    n[idx] += g*g;
+                }
+            }
+        }
+        global_i += chunk.l;
+        if(!prob.param->in_memory)
+            chunk.clear();
+        loss += local_loss;
+    }
+    return loss / data->l ;
+}
 
 FtrlChunk::FtrlChunk(string data_name, FtrlInt id) {
     l = 0, nnz = 0;
@@ -336,9 +415,9 @@ void FtrlProblem::save_model_txt(string model_path) {
     FtrlFloat *na = n.data();
     FtrlFloat *za = z.data();
     char buffer[1024];
-    for (FtrlInt j = 0; j < data->n; j++, wa++, na++, za++)
+    for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++)
     {
-        sprintf(buffer, "w%ld %lf %lf %lf", j, *wa, *na, *za);
+        sprintf(buffer, "w%lld %lf %lf %lf", j, *wa, *na, *za);
         f_out << buffer << endl;
     }
     f_out.close();
@@ -546,15 +625,18 @@ void FtrlProblem::validate() {
             va_labels[global_i+i] = y;
 
             FtrlFloat exp_m, weight;
-            weight = test_data->weighted ? test_data->weight[global_i + i]:1;
+            if(data->weighted)
+                weight = data->weight[global_i + i] / data->sum_weight;
+            else
+                weight = 1;
 
             if (wTx*y > 0) {
                 exp_m = exp(-y*wTx);
-                local_va_loss += log(1+exp_m) * weight / test_data->sum_weight;
+                local_va_loss += log(1+exp_m) * weight;
             }
             else {
                 exp_m = exp(y*wTx);
-                local_va_loss += -y*wTx+log(1+exp_m) * weight / test_data->sum_weight;
+                local_va_loss += -y*wTx+log(1+exp_m) * weight;
             }
         }
         global_i += chunk.l;
@@ -708,17 +790,20 @@ void FtrlProblem::fun() {
             }
 
             FtrlFloat exp_m, tmp, weight;
-            weight = data->weighted ? data->weight[global_i + i]:1;
+            if(data->weighted)
+                weight = data->weight[global_i + i] / data->sum_weight;
+            else
+                weight = 1;
 
             if (wTx*y > 0) {
                 exp_m = exp(-y*wTx);
-                tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
-                local_tr_loss += log(1+exp_m) * weight / data->sum_weight;
+                tmp = exp_m/(1+exp_m) * weight;
+                local_tr_loss += log(1+exp_m) * weight;
             }
             else {
                 exp_m = exp(y*wTx);
-                tmp = 1/(1+exp_m) * weight / data->sum_weight;
-                local_tr_loss += -y*wTx+log(1+exp_m) * weight / data->sum_weight;
+                tmp = 1/(1+exp_m) * weight;
+                local_tr_loss += -y*wTx+log(1+exp_m) * weight;
             }
 
             FtrlFloat kappa = -y*tmp;
@@ -786,15 +871,18 @@ void FtrlProblem::solve() {
                 }
 
                 FtrlFloat exp_m, tmp, weight;
-                weight = data->weighted ? data->weight[global_i + i]:1;
+                if(data->weighted)
+                    weight = data->weight[global_i + i] / data->sum_weight;
+                else
+                    weight = 1;
 
                 if (wTx*y > 0) {
                     exp_m = exp(-y*wTx);
-                    tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
+                    tmp = exp_m/(1+exp_m) * weight;
                 }
                 else {
                     exp_m = exp(y*wTx);
-                    tmp = 1/(1+exp_m) * weight / data->sum_weight;
+                    tmp = 1/(1+exp_m) * weight;
                 }
 
                 FtrlFloat kappa = -y*tmp;
@@ -835,6 +923,50 @@ void FtrlProblem::solve() {
                 best_va_loss = va_loss;
             }
         }
-        //printf("%d:g_norm=%lf\n", ind++, sqrt(g_norm));
+    }
+}
+
+void causE(FtrlProblem &prob_sc, FtrlProblem &prob_st) {
+    FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
+    vector<FtrlFloat> prev_w_st(prob_st.data->n, 0);
+    vector<FtrlFloat> prev_n_st(prob_st.data->n, 0);
+    vector<FtrlFloat> prev_z_st(prob_st.data->n, 0);
+    vector<FtrlFloat> prev_w_sc(prob_sc.data->n, 0);
+    vector<FtrlFloat> prev_n_sc(prob_sc.data->n, 0);
+    vector<FtrlFloat> prev_z_sc(prob_sc.data->n, 0);
+
+    prob_st.print_header_info();
+    for (FtrlInt t = 0; t < prob_st.param->nr_pass; t++, prob_st.t++, prob_sc.t++) {
+        prob_st.tr_loss = CausE_one_epoch(prob_st, prob_sc, prob_st.data, true);
+        if (!prob_st.test_data->file_name.empty()) {
+            prob_st.va_loss = CausE_one_epoch(prob_st, prob_sc, prob_st.test_data, false);
+        }
+        prob_sc.tr_loss = CausE_one_epoch(prob_sc, prob_st, prob_sc.data, true);
+        if (!prob_sc.test_data->file_name.empty()) {
+            prob_sc.va_loss = CausE_one_epoch(prob_sc, prob_st, prob_sc.test_data, false);
+        }
+        prob_st.print_epoch_info();
+        prob_sc.print_epoch_info();
+
+        if(prob_sc.param->auto_stop) {
+            if(prob_sc.va_loss > best_va_loss){
+                memcpy(prob_sc.w.data(), prev_w_sc.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prob_sc.n.data(), prev_n_sc.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prob_sc.z.data(), prev_z_sc.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prob_st.w.data(), prev_w_st.data(), prob_st.data->n * sizeof(FtrlFloat));
+                memcpy(prob_st.n.data(), prev_n_st.data(), prob_st.data->n * sizeof(FtrlFloat));
+                memcpy(prob_st.z.data(), prev_z_st.data(), prob_st.data->n * sizeof(FtrlFloat));
+                cout << "Auto-stop. Use model at" << t <<"th iteration."<<endl;
+                break;
+            }else{
+                memcpy(prev_w_sc.data(), prob_sc.w.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prev_n_sc.data(), prob_sc.n.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prev_z_sc.data(), prob_sc.z.data(), prob_sc.data->n * sizeof(FtrlFloat));
+                memcpy(prev_w_st.data(), prob_st.w.data(), prob_st.data->n * sizeof(FtrlFloat));
+                memcpy(prev_n_st.data(), prob_st.n.data(), prob_st.data->n * sizeof(FtrlFloat));
+                memcpy(prev_z_st.data(), prob_st.z.data(), prob_st.data->n * sizeof(FtrlFloat));
+                best_va_loss = prob_sc.va_loss;
+            }
+        }
     }
 }

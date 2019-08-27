@@ -14,6 +14,7 @@
 #include <iomanip>
 #include <cstring>
 #include <map>
+#include <set>
 
 #include "omp.h"
 
@@ -37,10 +38,10 @@ public:
 class Parameter {
 
 public:
-    FtrlFloat l1, l2, alpha, beta;
+    FtrlFloat l1, l2, l3, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1;
-    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight;
-    Parameter():l1(0.1), l2(0.1), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false){};
+    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE;
+    Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false){};
 };
 
 class FtrlChunk {
@@ -77,7 +78,7 @@ public:
     vector<FtrlFloat> weight;
     FtrlFloat sum_weight;
 
-    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0), sum_weight(0) {
+    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0), weighted(false), sum_weight(0) {
         meta_name = file_name + ".meta";
     };
     void print_data_info();
@@ -99,7 +100,7 @@ public:
 
     vector<FtrlFloat> w, z, n, f;
 	bool normalization = false;
-    FtrlInt t = 10;
+    FtrlInt t = 0;
 	FtrlLong feats = 0;
     FtrlFloat tr_loss = 0.0f, va_loss = 0.0f, va_auc = 0.0f, fun_val = 0.0f, gnorm = 0.0f, reg = 0.0f;
     FtrlFloat start_time = 0.0f;
@@ -120,4 +121,5 @@ public:
 };
 
 FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders);
+void causE(FtrlProblem &prob_sc, FtrlProblem &prob_st);
 #endif

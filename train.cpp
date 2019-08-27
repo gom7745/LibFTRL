@@ -6,13 +6,15 @@
 #include "tools.h"
 
 #include <fenv.h>
+#include <cassert>
 
 
 struct Option
 {
     shared_ptr<Parameter> param;
     FtrlInt verbose, solver;
-    string data_path, test_path, model_path, warm_model_path, data_profile, test_profile, featmap_path, pos_bias_map_path;
+    string data_path, test_path, model_path, warm_model_path, data_profile, test_profile, featmap_path, pos_bias_map_path, warm_update_model_path;
+    string data_path_st, test_path_st, model_path_st, warm_model_path_st;
 };
 
 string basename(string path)
@@ -51,7 +53,12 @@ string train_help()
     "-b <beta>: set shrinking base for learning rate schedule\n"
     "-l1 <lambda_1>: set regularization coefficient on l1 regularizer (default 0.1)\n"
     "-l2 <lambda_2>: set regularization coefficient on l2 regularizer (default 0.1)\n"
+    "-l3 <lambda_3>: set regularization coefficient on l2 regularizer for CausE (default 0)\n"
     "-t <iter>: set number of iterations (default 20)\n"
+    "-tr-st <path>: set path to st train set\n"
+    "-p-st <path>: set path to st test set\n"
+    "-m-st <path>: set path to st warm model\n"
+    "-save-m-st <path>: set path to st model\n"
     "-p <path>: set path to test set\n"
     "-m <path>: set path to warm model\n"
     "-c <threads>: set number of cores\n"
@@ -64,6 +71,8 @@ string train_help()
     "--in-memory: keep data in memroy\n"
     "--one-pass: train wihtout generate binary files\n"
     "--weight: train with weighted instance\n"
+    "--save-update: save updated weight only\n"
+    "--causE: causE FTRL\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
 }
@@ -117,6 +126,18 @@ Option parse_option(int argc, char **argv)
                 throw invalid_argument("-l2 should be followed by a number");
             option.param->l2 = atof(argv[i]);
         }
+        else if(args[i].compare("-l3") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("need to specify l3\
+                                        regularization coefficient\
+                                        after -l3");
+            i++;
+
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-l3 should be followed by a number");
+            option.param->l3 = atof(argv[i]);
+        }
         else if(args[i].compare("-t") == 0)
         {
             if((i+1) >= argc)
@@ -154,6 +175,38 @@ Option parse_option(int argc, char **argv)
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-c should be followed by a number");
             option.param->nr_threads = atof(argv[i]);
+        }
+        else if(args[i].compare("-p-st") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -p-st");
+            i++;
+
+            option.test_path_st = string(args[i]);
+        }
+        else if(args[i].compare("-tr-st") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -tr-st");
+            i++;
+
+            option.data_path_st = string(args[i]);
+        }
+        else if(args[i].compare("-m-st") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -m-st");
+            i++;
+
+            option.warm_model_path_st = string(args[i]);
+        }
+        else if(args[i].compare("-save-m-st") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -save-m-st");
+            i++;
+
+            option.model_path_st = string(args[i]);
         }
         else if(args[i].compare("-p") == 0)
         {
@@ -227,6 +280,14 @@ Option parse_option(int argc, char **argv)
         {
             option.param->weight = true;
         }
+        else if(args[i].compare("--save-update") == 0)
+        {
+            option.param->save_update = true;
+        }
+        else if(args[i].compare("--causE") == 0)
+        {
+            option.param->causE = true;
+        }
         else
         {
             break;
@@ -280,22 +341,43 @@ int main(int argc, char *argv[])
 
         FtrlProblem prob(data, test_data, option.param);
         prob.initialize(option.param->normalized, option.warm_model_path);
-        if (option.solver == 1) {
-            cout << "Solver Type: FTRL" << endl;
-            if(option.param->one_pass)
-                prob.split_train();
-            else
-                prob.solve();
-        }
-        else if (option.solver == 2) {
-            cout << "Solver Type: RDA" << endl;
-            prob.solve_rda();
+        if (option.param->causE) {
+            cout << "Solver Type: CausE FTRL" << endl;
+            shared_ptr<FtrlData> data_st = make_shared<FtrlData>(option.data_path_st);
+            shared_ptr<FtrlData> test_data_st = make_shared<FtrlData>(option.test_path_st);
+            data_st->split_chunks();
+            cout << "Tr_data St: ";
+            data_st->print_data_info();
+            if (!test_data_st->file_name.empty()) {
+                test_data_st->split_chunks();
+                cout << "Va_data St: ";
+                test_data->print_data_info();
+            }
+            assert(!test_data_st->file_name.empty() && !data_st->file_name.empty());
+            FtrlProblem prob_st(data_st, test_data_st, option.param);
+            prob_st.initialize(option.param->normalized, option.warm_model_path_st);
+            causE(prob, prob_st);
+            prob.save_model_txt(option.model_path);
+            prob_st.save_model_txt(option.model_path_st);
         }
         else {
-            cout << "Solver Type: AdaGrad" << endl;
-            prob.solve_adagrad();
+            if (option.solver == 1) {
+                cout << "Solver Type: FTRL" << endl;
+                if(option.param->one_pass)
+                    prob.split_train();
+                else
+                    prob.solve();
+            }
+            else if (option.solver == 2) {
+                cout << "Solver Type: RDA" << endl;
+                prob.solve_rda();
+            }
+            else {
+                cout << "Solver Type: AdaGrad" << endl;
+                prob.solve_adagrad();
+            }
+            prob.save_model_txt(option.model_path);
         }
-        prob.save_model_txt(option.model_path);
     }
     catch (invalid_argument &e)
     {

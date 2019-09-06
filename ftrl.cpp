@@ -229,6 +229,7 @@ void FtrlData::split_chunks() {
                 if (n < idx+1) {
                     n = idx+1;
                 }
+                nnz_idx.insert(idx);
                 chunk.nodes.push_back(Node(idx, val));
                 r += val*val;
             }
@@ -382,11 +383,12 @@ void FtrlData::print_data_info() {
 void FtrlProblem::save_model(string model_path) {
     ofstream f(model_path, ios::out | ios::binary);
 
+    FtrlLong nr_feature = w.size();
     f.write(reinterpret_cast<char*>(&param->normalized), sizeof(bool));
     f.write(reinterpret_cast<char*>(&data->n), sizeof(FtrlLong));
-    f.write(reinterpret_cast<char*>(w.data()), sizeof(FtrlFloat) * data->n);
-    f.write(reinterpret_cast<char*>(n.data()), sizeof(FtrlFloat) * data->n);
-    f.write(reinterpret_cast<char*>(z.data()), sizeof(FtrlFloat) * data->n);
+    f.write(reinterpret_cast<char*>(w.data()), sizeof(FtrlFloat) * nr_feature);
+    f.write(reinterpret_cast<char*>(n.data()), sizeof(FtrlFloat) * nr_feature);
+    f.write(reinterpret_cast<char*>(z.data()), sizeof(FtrlFloat) * nr_feature);
 }
 
 FtrlLong FtrlProblem::load_model(string model_path) {
@@ -408,8 +410,9 @@ FtrlLong FtrlProblem::load_model(string model_path) {
 
 void FtrlProblem::save_model_txt(string model_path) {
     ofstream f_out(model_path);
+    FtrlLong nr_feature = w.size();
     f_out << "norm " << param->normalized << endl;
-    f_out << "n " << data->n << endl;
+    f_out << "n " << nr_feature << endl;
 
     FtrlFloat *wa = w.data();
     FtrlFloat *na = n.data();
@@ -418,6 +421,30 @@ void FtrlProblem::save_model_txt(string model_path) {
     for (FtrlLong j = 0; j < data->n; j++, wa++, na++, za++)
     {
         sprintf(buffer, "w%lld %lf %lf %lf", j, *wa, *na, *za);
+        f_out << buffer << endl;
+    }
+    f_out.close();
+}
+
+void FtrlProblem::save_model_updated_txt(string model_path) {
+    ofstream f_out(model_path);
+    FtrlLong nr_feature = w.size();
+    f_out << "norm " << param->normalized << endl;
+    f_out << "n " << nr_feature << endl;
+
+    vector<FtrlLong> updated_idx;
+    for(auto idx:data->nnz_idx) {
+        updated_idx.push_back(idx);
+    }
+    sort(updated_idx.begin(), updated_idx.end());
+
+    FtrlFloat *wa = w.data();
+    FtrlFloat *na = n.data();
+    FtrlFloat *za = z.data();
+    char buffer[1024];
+    for (FtrlLong j:updated_idx)
+    {
+        sprintf(buffer, "w%lld %lf %lf %lf", j, *(wa+j), *(na+j), *(za+j));
         f_out << buffer << endl;
     }
     f_out.close();

@@ -99,7 +99,8 @@ public:
         :data(data), test_data(test_data), param(param) {};
 
     vector<FtrlFloat> w, z, n, f;
-	bool normalization = false;
+    map<FtrlLong, FtrlFloat*> wznf_map;
+	bool normalization = false, use_map = false;
     FtrlInt t = 0;
 	FtrlLong feats = 0;
     FtrlFloat tr_loss = 0.0f, va_loss = 0.0f, va_auc = 0.0f, fun_val = 0.0f, gnorm = 0.0f, reg = 0.0f;

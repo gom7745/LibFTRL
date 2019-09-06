@@ -78,7 +78,10 @@ void predict(string test_path, string model_path, string output_path)
                     continue;
                 }
                 FtrlFloat val = x.val*r;
-                wTx += prob.w[idx]*val;
+                if(prob.use_map)
+                    wTx += prob.wznf_map[idx][0]*val;
+                else
+                    wTx += prob.w[idx]*val;
             }
             va_scores[global_i+i] = wTx;
             va_orders[global_i+i] = global_i+i;

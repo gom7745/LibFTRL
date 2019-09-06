@@ -458,17 +458,32 @@ FtrlLong FtrlProblem::load_model_txt(string model_path) {
     FtrlLong nr_feature;
 
     f_in >> dummy >> normalization >> dummy >> nr_feature;
-    w.resize(nr_feature);
-    z.resize(nr_feature);
-    n.resize(nr_feature);
-    FtrlFloat *wptr = w.data();
-    FtrlFloat *nptr = n.data();
-    FtrlFloat *zptr = z.data();
+    if(!use_map) {
+        w.resize(nr_feature);
+        z.resize(nr_feature);
+        n.resize(nr_feature);
+        FtrlFloat *wptr = w.data();
+        FtrlFloat *nptr = n.data();
+        FtrlFloat *zptr = z.data();
 
-    for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
-    {
-        f_in >> dummy;
-        f_in >> *wptr >> *nptr >> *zptr;
+        for(FtrlLong j = 0; j < nr_feature; j++, wptr++, nptr++, zptr++)
+        {
+            f_in >> dummy;
+            f_in >> *wptr >> *nptr >> *zptr;
+        }
+    }
+    else {
+        while(true) {
+            f_in >> dummy;
+            if(f_in.eof())
+                break;
+            FtrlLong comma = dummy.find(",");
+            FtrlLong j = strtol(dummy.substr(1, comma-1).c_str(), NULL, 10);
+            FtrlFloat *tmp = new FtrlFloat[4];
+            f_in >> tmp[0] >> tmp[1] >> tmp[2];
+            tmp[3] = 0;
+            wznf_map[j] = tmp;
+        }
     }
 
     return nr_feature;
@@ -478,9 +493,11 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
     f.resize(data->n, 0);
     if(warm_model_path.empty()) {
         feats = data->n;
-        w.resize(data->n, 0);
-        z.resize(data->n, 0);
-        n.resize(data->n, 0);
+        if(!use_map) {
+            w.resize(data->n, 0);
+            z.resize(data->n, 0);
+            n.resize(data->n, 0);
+        }
     }
     else {
         ifstream f_in(warm_model_path);
@@ -491,15 +508,17 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
         }
         else {
             feats = data->n;
-            w.resize(data->n);
-            z.resize(data->n);
-            n.resize(data->n);
-            FtrlFloat *wptr = &w[nr_feature];
-            FtrlFloat *nptr = &n[nr_feature];
-            FtrlFloat *zptr = &z[nr_feature];
-            for(FtrlLong j = nr_feature; j < data->n; j++, wptr++, nptr++, zptr++)
-            {
-                *wptr = 0; *nptr = 0; *zptr = 0;
+            if(!use_map) {
+                w.resize(data->n);
+                z.resize(data->n);
+                n.resize(data->n);
+                FtrlFloat *wptr = &w[nr_feature];
+                FtrlFloat *nptr = &n[nr_feature];
+                FtrlFloat *zptr = &z[nr_feature];
+                for(FtrlLong j = nr_feature; j < data->n; j++, wptr++, nptr++, zptr++)
+                {
+                    *wptr = 0; *nptr = 0; *zptr = 0;
+                }
             }
         }
     }

@@ -73,6 +73,7 @@ string train_help()
     "--weight: train with weighted instance\n"
     "--save-update: save updated weight only\n"
     "--causE: causE FTRL\n"
+    "--updated: save updated model only\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
 }
@@ -288,6 +289,10 @@ Option parse_option(int argc, char **argv)
         {
             option.param->causE = true;
         }
+        else if(args[i].compare("--updated") == 0)
+        {
+            option.param->updated = true;
+        }
         else
         {
             break;
@@ -376,7 +381,10 @@ int main(int argc, char *argv[])
                 cout << "Solver Type: AdaGrad" << endl;
                 prob.solve_adagrad();
             }
-            prob.save_model_txt(option.model_path);
+            if(option.param->updated)
+                prob.save_model_updated_txt(option.model_path);
+            else
+                prob.save_model_txt(option.model_path);
         }
     }
     catch (invalid_argument &e)

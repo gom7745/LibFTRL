@@ -197,7 +197,7 @@ void FtrlData::split_chunks() {
         }
     }
     else {
-        string line;
+        string str_line;
         ifstream fs(file_name);
 
         FtrlInt i = 0, chunk_id = 0;
@@ -206,24 +206,40 @@ void FtrlData::split_chunks() {
 
         chunk.nnzs.push_back(i);
 
-        while (getline(fs, line)) {
+        char *label_ptr, *idx_ptr, *val_ptr, *endptr;
+        unsigned int max_line = 1024;
+        char *line;
+        //while (getline(fs, str_line)) {
+        //    if (str_line.size() > max_line)
+        //        max_line *= 2;
+        //}
+        //fs.seekg(0, ios::beg);
+
+        while (getline(fs, str_line)) {
+            line = new char[str_line.size()+1];
+            strcpy(line, str_line.c_str());
             FtrlFloat label = 0;
-            istringstream iss(line);
 
             l++;
             chunk.l++;
 
-            iss >> label;
+            label_ptr = strtok(line," \t\n");
+            label = (int) strtol(label_ptr,&endptr,10);
             label = (label>0)? 1:-1;
             chunk.labels.push_back(label);
 
             FtrlInt idx = 0;
             FtrlFloat val = 0;
 
-            char dummy;
             FtrlFloat r = 0;
             FtrlInt max_nnz = 0;
-            while (iss >> idx >> dummy >> val) {
+            while (true) {
+                idx_ptr = strtok(NULL,":");
+                val_ptr = strtok(NULL," \t");
+                if(val_ptr == NULL)
+                    break;
+                idx = strtol(idx_ptr, &endptr, 10);
+                val = strtod(val_ptr, &endptr);
                 i++;
                 max_nnz++;
                 if (n < idx+1) {
@@ -249,6 +265,7 @@ void FtrlData::split_chunks() {
                 chunk.nnzs.push_back(i);
                 nr_chunk++;
             }
+            delete [] line;
         }
 
         chunk.nnz = i;

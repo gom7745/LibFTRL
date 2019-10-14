@@ -12,7 +12,7 @@
 struct Option
 {
     shared_ptr<Parameter> param;
-    FtrlInt verbose, solver;
+    FtrlInt verbose;
     string data_path, test_path, model_path, warm_model_path, data_profile, test_profile, featmap_path, pos_bias_map_path, warm_update_model_path;
     string data_path_st, test_path_st, model_path_st, warm_model_path_st;
 };
@@ -102,7 +102,7 @@ Option parse_option(int argc, char **argv)
 
             if(!is_numerical(argv[i]))
                 throw invalid_argument("-s should be followed by a number");
-            option.solver = atoi(argv[i]);
+            option.param->solver = atoi(argv[i]);
         }
         else if(args[i].compare("-l1") == 0)
         {
@@ -366,20 +366,20 @@ int main(int argc, char *argv[])
             prob_st.save_model_txt(option.model_path_st);
         }
         else {
-            if (option.solver == 1) {
+            if (option.param->solver == 1) {
                 cout << "Solver Type: FTRL" << endl;
                 if(option.param->one_pass)
                     prob.split_train();
                 else
                     prob.solve();
             }
-            else if (option.solver == 2) {
+            else if (option.param->solver == 2) {
                 cout << "Solver Type: RDA" << endl;
-                prob.solve_rda();
+                prob.solve();
             }
             else {
                 cout << "Solver Type: AdaGrad" << endl;
-                prob.solve_adagrad();
+                prob.solve();
             }
             if(option.param->save_update)
                 prob.save_model_updated_txt(option.model_path);

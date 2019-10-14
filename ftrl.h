@@ -27,6 +27,11 @@ typedef long long FtrlLong;
 
 FtrlLong const chunk_size = 3000000000;
 
+struct KL {
+    FtrlFloat kappa;
+    FtrlFloat local_loss = 0;
+};
+
 class Node {
 public:
     FtrlLong idx;
@@ -39,7 +44,7 @@ class Parameter {
 
 public:
     FtrlFloat l1, l2, l3, alpha, beta;
-    FtrlInt nr_pass = 20, nr_threads = 1;
+    FtrlInt nr_pass = 20, nr_threads = 1, solver = 0;
     bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE;
     Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false){};
 };
@@ -107,8 +112,6 @@ public:
 
     void initialize(bool norm, string warm_model_path);
     void solve();
-    void solve_adagrad();
-    void solve_rda();
     void split_train();
     void print_epoch_info();
     void print_header_info();
@@ -119,6 +122,12 @@ public:
     FtrlLong load_model_txt(string model_path);
     void fun();
     void validate();
+
+private:
+    inline KL cal_KL(FtrlFloat y, FtrlFloat wTx, FtrlFloat weight);
+    inline void updateFTRL(FtrlInt idx);
+    inline FtrlFloat cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlFloat kappa, bool do_update, bool is_train);
+    FtrlFloat one_epoch(shared_ptr<FtrlData> &data, bool do_update, bool ftrl_update, bool do_auc);
 };
 
 FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders);

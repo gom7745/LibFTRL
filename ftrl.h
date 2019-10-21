@@ -99,11 +99,13 @@ public:
     shared_ptr<FtrlData> data;
     shared_ptr<FtrlData> test_data;
     shared_ptr<Parameter> param;
+    FtrlProblem *prob_st;
     FtrlProblem() {};
     FtrlProblem(shared_ptr<FtrlData> &data, shared_ptr<FtrlData> &test_data, shared_ptr<Parameter> &param)
         :data(data), test_data(test_data), param(param) {};
 
     vector<FtrlFloat> w, z, n, f;
+    vector<FtrlFloat> prev_w, prev_n, prev_z;
 	bool normalization = false;
     FtrlInt t = 0;
 	FtrlLong feats = 0;
@@ -112,7 +114,6 @@ public:
 
     void initialize(bool norm, string warm_model_path);
     void solve();
-    void split_train();
     void print_epoch_info();
     void print_header_info();
     void save_model(string model_path);
@@ -126,8 +127,13 @@ public:
 private:
     inline KL cal_KL(FtrlFloat y, FtrlFloat wTx, FtrlFloat weight);
     inline void updateFTRL(FtrlInt idx);
+    inline void updateCausE(FtrlInt idx);
     inline FtrlFloat cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlFloat kappa, bool do_update, bool is_train);
     FtrlFloat one_epoch(shared_ptr<FtrlData> &data, bool do_update, bool ftrl_update, bool do_auc);
+    FtrlFloat one_epoch_bin_free(shared_ptr<FtrlData> &data, bool do_update, bool is_train, bool do_auc);
+    inline void backup();
+    inline void recover();
+    inline void resize(FtrlLong feats);
 };
 
 FtrlFloat cal_auc(vector<FtrlFloat> &va_labels, vector<FtrlFloat> &va_scores, vector<FtrlFloat> &va_orders);

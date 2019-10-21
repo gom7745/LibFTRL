@@ -323,17 +323,17 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
-        if(!option.data_profile.empty())
-            data->parse_profile(option.data_profile);
-        if (!option.param->one_pass)
+        if (option.param->one_pass)
+            data->parse_profile(option.data_path+".dp");
+        else
             data->split_chunks();
         cout << "Tr_data: ";
         data->print_data_info();
 
         if (!test_data->file_name.empty()) {
-            if(!option.test_profile.empty())
-                test_data->parse_profile(option.test_profile);
-            if(!option.param->one_pass)
+            if(option.param->one_pass)
+                test_data->parse_profile(option.test_path+".dp");
+            else
                 test_data->split_chunks();
             cout << "Va_data: ";
             test_data->print_data_info();
@@ -350,28 +350,34 @@ int main(int argc, char *argv[])
             cout << "Solver Type: CausE FTRL" << endl;
             shared_ptr<FtrlData> data_st = make_shared<FtrlData>(option.data_path_st);
             shared_ptr<FtrlData> test_data_st = make_shared<FtrlData>(option.test_path_st);
-            data_st->split_chunks();
+            if(option.param->one_pass)
+                data_st->parse_profile(option.data_path_st+".dp");
+            else
+                data_st->split_chunks();
             cout << "Tr_data St: ";
             data_st->print_data_info();
             if (!test_data_st->file_name.empty()) {
-                test_data_st->split_chunks();
+                if(option.param->one_pass)
+                    test_data_st->parse_profile(option.test_path_st+".dp");
+                else
+                    test_data_st->split_chunks();
                 cout << "Va_data St: ";
-                test_data->print_data_info();
+                test_data_st->print_data_info();
             }
             assert(!test_data_st->file_name.empty() && !data_st->file_name.empty());
             FtrlProblem prob_st(data_st, test_data_st, option.param);
             prob_st.initialize(option.param->normalized, option.warm_model_path_st);
-            causE(prob, prob_st);
+            prob.prob_st = &prob_st;
+            prob_st.prob_st = &prob;
+
+            prob.solve();
             prob.save_model_txt(option.model_path);
             prob_st.save_model_txt(option.model_path_st);
         }
         else {
             if (option.param->solver == 1) {
                 cout << "Solver Type: FTRL" << endl;
-                if(option.param->one_pass)
-                    prob.split_train();
-                else
-                    prob.solve();
+                prob.solve();
             }
             else if (option.param->solver == 2) {
                 cout << "Solver Type: RDA" << endl;

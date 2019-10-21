@@ -260,118 +260,6 @@ void FtrlData::split_chunks() {
     }
 }
 
-void FtrlProblem::split_train() {
-    print_header_info();
-    FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
-    int num_of_threads = param->nr_threads*1;
-    vector<string> lines(num_of_threads);
-
-    auto one_epoch = [&] (shared_ptr<FtrlData> &data, bool update) {
-        ifstream fs(data->file_name);
-        FtrlFloat loss = 0.0;
-        vector<FtrlFloat> ls(num_of_threads);
-        fill(ls.begin(), ls.end(), 0);
-        string tmp;
-        FtrlLong global_i = 0;
-        while (getline(fs, tmp)) {
-            lines[0] = tmp;
-            for(int j=1;j < num_of_threads;j++) {
-                getline(fs, lines[j]);
-            }
-            vector<vector<Node>> nodes(num_of_threads);
-            vector<FtrlFloat> rs(num_of_threads);
-            vector<FtrlFloat> labels(num_of_threads);
-            vector<FtrlInt> ns(num_of_threads);
-            fill(rs.begin(), rs.end(), 0);
-            fill(ns.begin(), ns.end(), 0);
-            fill(labels.begin(), labels.end(), 0);
-            FtrlFloat local_loss = 0.0;
-#pragma omp parallel for schedule(static) reduction(+: local_loss)
-            for(int j=0;j < num_of_threads;j++) {
-                string &line = lines[j];
-                FtrlFloat &label = labels[j];
-                istringstream iss(line);
-
-                ls[j]++;
-
-                iss >> label;
-                label = (label>0)? 1:-1;
-
-                FtrlInt idx = 0;
-                FtrlFloat val = 0;
-
-                char dummy;
-                while (iss >> idx >> dummy >> val) {
-                    if (ns[j] < idx+1) {
-                        ns[j] = idx+1;
-                    }
-                    nodes[j].push_back(Node(idx, val));
-                    rs[j] += val*val;
-                }
-                FtrlFloat y=label, wTx=0;
-                FtrlFloat r = param->normalized ? rs[j]:1;
-                for(Node &x:nodes[j]) {
-                    FtrlInt idx = x.idx;
-                    FtrlFloat val = x.val*r, zi = z[idx], ni = n[idx];
-                    FtrlInt sign=0;
-                    if(update) {
-                        if (abs(zi) > l1) {
-                            if(zi>0) {sign=1;}
-                            else if (zi<0) {sign=-1;}
-                            w[idx] = (sign*l1-zi) / ((b+sqrt(ni))/a+l2);
-                            //w[idx] = -(zi-(2*(zi>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
-                        }
-                        else {
-                            w[idx] = 0;
-                        }
-                    }
-                    wTx += w[idx]*val;
-                }
-                FtrlFloat exp_m, tmp, weight;
-                weight = data->weighted ? data->weight[global_i + j]:1;
-
-                if (wTx*y > 0) {
-                    exp_m = exp(-y*wTx);
-                    tmp = exp_m/(1+exp_m) * weight / data->sum_weight;
-                    local_loss += log(1+exp_m) * weight / data->sum_weight;
-                }
-                else {
-                    exp_m = exp(y*wTx);
-                    tmp = 1/(1+exp_m) * weight / data->sum_weight;
-                    local_loss += -y*wTx+log(1+exp_m) * weight / data->sum_weight;
-                }
-
-                if(update) {
-                    FtrlFloat kappa = -y*tmp;
-                    for(Node &x:nodes[j]) {
-                        FtrlInt idx = x.idx;
-                        FtrlFloat val = x.val*r;
-                        FtrlFloat g = kappa*val;
-                        //FtrlFloat theta = 1/a*(sqrt(n[idx]+g*g)-sqrt(n[idx]));
-                        FtrlFloat theta = (sqrt(n[idx]+g*g)-sqrt(n[idx]))/a;
-                        z[idx] += g-theta*w[idx];
-                        n[idx] += g*g;
-                    }
-                }
-            }
-            loss += local_loss;
-            global_i += num_of_threads;
-        }
-        FtrlLong l = 0;
-        for(auto ll:ls) {
-            l += ll;
-        }
-        data->l = l;
-        return loss / l ;
-    };
-    tr_loss = one_epoch(data, true);
-    if (!test_data->file_name.empty()) {
-        va_loss = one_epoch(test_data, false);
-    }
-    va_auc = 0;
-    print_epoch_info();
-}
-
 void FtrlData::print_data_info() {
     cout << "Data: " << file_name << "\t";
     cout << "#features: " << n << "\t";
@@ -474,13 +362,24 @@ FtrlLong FtrlProblem::load_model_txt(string model_path) {
     return nr_feature;
 }
 
+inline void FtrlProblem::resize(FtrlLong feats) {
+    if((unsigned int)feats != w.size()) {
+        w.resize(feats, 0);
+        z.resize(feats, 0);
+        n.resize(feats, 0);
+    }
+    f.resize(feats, 0);
+    if(param->auto_stop) {
+        prev_w.resize(feats, 0);
+        prev_z.resize(feats, 0);
+        prev_n.resize(feats, 0);
+    }
+}
+
 void FtrlProblem::initialize(bool norm, string warm_model_path) {
-    f.resize(data->n, 0);
     if(warm_model_path.empty()) {
         feats = data->n;
-        w.resize(data->n, 0);
-        z.resize(data->n, 0);
-        n.resize(data->n, 0);
+        resize(data->n);
     }
     else {
         ifstream f_in(warm_model_path);
@@ -488,12 +387,11 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
         FtrlLong nr_feature = load_model_txt(warm_model_path);
         if(nr_feature >= data->n) {
             feats = nr_feature;
+            resize(feats);
         }
         else {
             feats = data->n;
-            w.resize(data->n);
-            z.resize(data->n);
-            n.resize(data->n);
+            resize(feats);
             FtrlFloat *wptr = &w[nr_feature];
             FtrlFloat *nptr = &n[nr_feature];
             FtrlFloat *zptr = &z[nr_feature];
@@ -520,8 +418,7 @@ void FtrlProblem::initialize(bool norm, string warm_model_path) {
                 f[idx]++;
             }
         }
-        if(!param->in_memory)
-            chunk.clear();
+        chunk.clear();
     }
     for (FtrlInt j = 0; j < data->n; j++) {
         if (param->freq)
@@ -776,6 +673,18 @@ inline void FtrlProblem::updateFTRL(FtrlInt idx) {
     }
 }
 
+inline void FtrlProblem::updateCausE(FtrlInt idx) {
+    FtrlFloat l1 = param->l1, l2 = param->l2, l3 = param->l3, a = param->alpha, b = param->beta;
+    FtrlFloat zi = z[idx], ni = n[idx];
+    FtrlFloat cond = zi - l3*prob_st->w[idx];
+    if (abs(cond) > l1*f[idx]) {
+        w[idx] = -(cond-(2*(cond>0)-1)*l1*f[idx]) / ((b+sqrt(ni))/a+l2*f[idx]);
+    }
+    else {
+        w[idx] = 0;
+    }
+}
+
 inline FtrlFloat FtrlProblem::cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlFloat kappa=0, bool do_update=false, bool ftrl_update=false) {
     FtrlFloat wTx = 0, g_norm = 0;
     FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
@@ -792,7 +701,7 @@ inline FtrlFloat FtrlProblem::cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlF
                 n[idx] += g_square;
                 w[idx] -= (a/(b+sqrt(n[idx])))*g;
             }
-            else if (param->solver == 1) {
+            else if (param->solver == 1 || param->causE) {
                 g = kappa*val;
                 g_square = g*g;
                 FtrlFloat theta = 1/a*(sqrt(n[idx]+g_square)-sqrt(n[idx]));
@@ -812,6 +721,9 @@ inline FtrlFloat FtrlProblem::cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlF
             if(param->solver == 1 && ftrl_update) {
                 updateFTRL(idx);
             }
+            if (param->causE && ftrl_update) {
+                updateCausE(idx);
+            }
             wTx += w[idx]*val;
         }
     }
@@ -822,12 +734,87 @@ inline FtrlFloat FtrlProblem::cal_wTx(Node *begin, Node *end, FtrlFloat r, FtrlF
         return wTx;
 }
 
+
+FtrlFloat FtrlProblem::one_epoch_bin_free(shared_ptr<FtrlData> &data, bool do_update, bool is_train, bool do_auc=false) {
+    int mini_batch = param->nr_threads*1;
+    vector<string> lines(mini_batch);
+    ifstream fs(data->file_name);
+    FtrlFloat loss = 0.0;
+    vector<FtrlFloat> ls(mini_batch);
+    fill(ls.begin(), ls.end(), 0);
+    string tmp;
+    FtrlLong global_i = 0;
+    while (getline(fs, tmp)) {
+        lines[0] = tmp;
+        for(int j=1;j < mini_batch;j++) {
+            getline(fs, lines[j]);
+        }
+        vector<vector<Node>> nodes(mini_batch);
+        vector<FtrlFloat> rs(mini_batch);
+        vector<FtrlFloat> labels(mini_batch);
+        vector<FtrlInt> ns(mini_batch);
+        fill(rs.begin(), rs.end(), 0);
+        fill(ns.begin(), ns.end(), 0);
+        fill(labels.begin(), labels.end(), 0);
+        FtrlFloat local_loss = 0.0;
+#pragma omp parallel for schedule(static) reduction(+: local_loss)
+        for(int j=0;j < mini_batch;j++) {
+            string &line = lines[j];
+            FtrlFloat &label = labels[j];
+            istringstream iss(line);
+
+            ls[j]++;
+
+            iss >> label;
+            label = (label>0)? 1:-1;
+
+            FtrlInt idx = 0;
+            FtrlFloat val = 0;
+
+            char dummy;
+            while (iss >> idx >> dummy >> val) {
+                if (ns[j] < idx+1) {
+                    ns[j] = idx+1;
+                }
+                nodes[j].push_back(Node(idx, val));
+                rs[j] += val*val;
+            }
+            FtrlFloat y=label;
+            FtrlFloat r = param->normalized ? rs[j]:1;
+            unsigned int size = nodes[j].size();
+            Node *begin = &nodes[j][0], *end = &nodes[j][size];
+            FtrlFloat wTx = cal_wTx(begin, end, r, 0, false, is_train);
+            FtrlFloat exp_m, tmp, weight;
+            if(data->weighted)
+                weight = data->weight[global_i + j] / data->sum_weight;
+            else
+                weight = 1;
+
+            KL kl = cal_KL(y, wTx, weight);
+            FtrlFloat kappa = kl.kappa;
+            local_loss += kl.local_loss;
+
+            FtrlFloat g_norm = 0;
+            if(do_update)
+               g_norm = cal_wTx(begin, end, r, kappa, true, false);
+        }
+        loss += local_loss;
+        global_i += mini_batch;
+    }
+    FtrlLong l = 0;
+    for(auto ll:ls) {
+        l += ll;
+    }
+    data->l = l;
+    return loss / l;
+}
+
 FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, bool is_train, bool do_auc=false) {
     FtrlInt nr_chunk = data->nr_chunk, global_i = 0;
     vector<FtrlFloat> va_labels, va_scores, va_orders;
     vector<FtrlInt> outer_order(nr_chunk);
     iota(outer_order.begin(), outer_order.end(), 0);
-    random_shuffle(outer_order.begin(),outer_order.end());
+//    random_shuffle(outer_order.begin(),outer_order.end());
     FtrlFloat local_loss = 0.0;
     if (do_auc) {
         va_labels.resize(data->l, 0);
@@ -840,9 +827,9 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
             chunk.read();
         vector<FtrlInt> inner_oder(chunk.l);
         iota(inner_oder.begin(), inner_oder.end(),0);
-        random_shuffle(inner_oder.begin(), inner_oder.end());
+//        random_shuffle(inner_oder.begin(), inner_oder.end());
 
-#pragma omp parallel for schedule(guided) reduction(+: local_loss)
+//#pragma omp parallel for schedule(guided) reduction(+: local_loss)
         for (FtrlInt ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = inner_oder[ii];
             FtrlFloat y=chunk.labels[i];
@@ -856,7 +843,7 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
                 va_labels[global_i+i] = y;
             }
 
-            FtrlFloat exp_m, tmp, weight;
+            FtrlFloat weight;
             if(data->weighted)
                 weight = data->weight[global_i + i] / data->sum_weight;
             else
@@ -866,7 +853,7 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
             FtrlFloat kappa = kl.kappa;
             local_loss += kl.local_loss;
 
-            FtrlFloat g_norm;
+            FtrlFloat g_norm = 0;
             if(do_update)
                g_norm = cal_wTx(begin, end, r, kappa, true, false);
         }
@@ -884,36 +871,63 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
     return loss;
 }
 
+inline void FtrlProblem::backup() {
+    memcpy(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
+    memcpy(prev_n.data(), n.data(), data->n * sizeof(FtrlFloat));
+    memcpy(prev_z.data(), z.data(), data->n * sizeof(FtrlFloat));
+}
+
+inline void FtrlProblem::recover() {
+    memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
+    memcpy(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
+    memcpy(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));
+}
+
 void FtrlProblem::solve() {
     print_header_info();
     FtrlInt nr_chunk = data->nr_chunk, global_i = 0;
     FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
     FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
-    vector<FtrlFloat> prev_w(data->n, 0);
-    vector<FtrlFloat> prev_n(data->n, 0);
-    vector<FtrlFloat> prev_z(data->n, 0);
 
-    for (t = 0; t < param->nr_pass; t++) {
-        cout << "train:" << endl;
-        tr_loss = one_epoch(data, true, true);
+    for (t = 0; t < param->nr_pass; t++, prob_st->t++) {
+        if(param->causE) {
+            if(param->one_pass)
+                prob_st->tr_loss = prob_st->one_epoch_bin_free(prob_st->data, true, true);
+            else
+                prob_st->tr_loss = prob_st->one_epoch(prob_st->data, true, true);
+        }
+        if(param->one_pass)
+            tr_loss = one_epoch_bin_free(data, true, true);
+        else
+            tr_loss = one_epoch(data, true, true);
 
+        if (param->causE && !prob_st->test_data->file_name.empty()) {
+            if(param->one_pass)
+                prob_st->va_loss = prob_st->one_epoch_bin_free(prob_st->test_data, false, false, !param->no_auc);
+            else
+                prob_st->va_loss = prob_st->one_epoch(prob_st->test_data, false, false, !param->no_auc);
+        }
         if (!test_data->file_name.empty()) {
-            cout << "validate:" << endl;
-            va_loss = one_epoch(test_data, false, false, !param->no_auc);
+            if(param->one_pass)
+                va_loss = one_epoch_bin_free(test_data, false, false, !param->no_auc);
+            else
+                va_loss = one_epoch(test_data, false, false, !param->no_auc);
         }
 
+        if(param->causE)
+            prob_st->print_epoch_info();
         print_epoch_info();
         if(param->auto_stop) {
             if(va_loss > best_va_loss){
-                memcpy(w.data(), prev_w.data(), data->n * sizeof(FtrlFloat));
-                memcpy(n.data(), prev_n.data(), data->n * sizeof(FtrlFloat));
-                memcpy(z.data(), prev_z.data(), data->n * sizeof(FtrlFloat));
+                recover();
+                if(param->causE)
+                    prob_st->recover();
                 cout << "Auto-stop. Use model at" << t <<"th iteration."<<endl;
                 break;
             }else{
-                memcpy(prev_w.data(), w.data(), data->n * sizeof(FtrlFloat));
-                memcpy(prev_n.data(), n.data(), data->n * sizeof(FtrlFloat));
-                memcpy(prev_z.data(), z.data(), data->n * sizeof(FtrlFloat));
+                backup();
+                if(param->causE)
+                    prob_st->backup();
                 best_va_loss = va_loss;
             }
         }

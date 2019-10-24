@@ -45,8 +45,8 @@ class Parameter {
 public:
     FtrlFloat l1, l2, l3, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1, solver = 0;
-    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE;
-    Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false){};
+    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE, uni_weight;
+    Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false), uni_weight(1.0){};
 };
 
 class FtrlChunk {
@@ -81,10 +81,11 @@ public:
     shared_ptr<map<FtrlLong, string>> pos_featmap;
     vector<FtrlInt> length;
     vector<FtrlFloat> weight;
+    FtrlFloat uni_weight;
     FtrlFloat sum_weight;
     set<FtrlLong> nnz_idx;
 
-    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0), weighted(false), sum_weight(0) {
+    FtrlData(string file_name): file_name(file_name), l(0), n(0), nr_chunk(0), weighted(false), uni_weight(1.0), sum_weight(0) {
         meta_name = file_name + ".meta";
     };
     void print_data_info();
@@ -97,6 +98,7 @@ public:
 class FtrlProblem {
 public:
     shared_ptr<FtrlData> data;
+    shared_ptr<FtrlData> data_sp;
     shared_ptr<FtrlData> test_data;
     shared_ptr<Parameter> param;
     FtrlProblem *prob_st;
@@ -111,6 +113,7 @@ public:
 	FtrlLong feats = 0;
     FtrlFloat tr_loss = 0.0f, va_loss = 0.0f, va_auc = 0.0f, fun_val = 0.0f, gnorm = 0.0f, reg = 0.0f;
     FtrlFloat start_time = 0.0f;
+    FtrlFloat uniweight = 1.0f;
 
     void initialize(bool norm, string warm_model_path);
     void solve();

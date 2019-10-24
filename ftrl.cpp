@@ -814,7 +814,7 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
     vector<FtrlFloat> va_labels, va_scores, va_orders;
     vector<FtrlInt> outer_order(nr_chunk);
     iota(outer_order.begin(), outer_order.end(), 0);
-//    random_shuffle(outer_order.begin(),outer_order.end());
+    random_shuffle(outer_order.begin(),outer_order.end());
     FtrlFloat local_loss = 0.0;
     if (do_auc) {
         va_labels.resize(data->l, 0);
@@ -827,9 +827,9 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
             chunk.read();
         vector<FtrlInt> inner_oder(chunk.l);
         iota(inner_oder.begin(), inner_oder.end(),0);
-//        random_shuffle(inner_oder.begin(), inner_oder.end());
+        random_shuffle(inner_oder.begin(), inner_oder.end());
 
-//#pragma omp parallel for schedule(guided) reduction(+: local_loss)
+#pragma omp parallel for schedule(guided) reduction(+: local_loss)
         for (FtrlInt ii = 0; ii < chunk.l; ii++) {
             FtrlInt i = inner_oder[ii];
             FtrlFloat y=chunk.labels[i];
@@ -849,7 +849,7 @@ FtrlFloat FtrlProblem::one_epoch(shared_ptr<FtrlData> &data, bool do_update, boo
             else
                 weight = 1;
 
-            KL kl = cal_KL(y, wTx, weight);
+            KL kl = cal_KL(y, wTx, weight * data->uni_weight);
             FtrlFloat kappa = kl.kappa;
             local_loss += kl.local_loss;
 
@@ -889,8 +889,9 @@ void FtrlProblem::solve() {
     FtrlFloat l1 = param->l1, l2 = param->l2, a = param->alpha, b = param->beta;
     FtrlFloat best_va_loss = numeric_limits<FtrlFloat>::max();
 
-    for (t = 0; t < param->nr_pass; t++, prob_st->t++) {
+    for (t = 0; t < param->nr_pass; t++) {
         if(param->causE) {
+            prob_st->t = t;
             if(param->one_pass)
                 prob_st->tr_loss = prob_st->one_epoch_bin_free(prob_st->data, true, true);
             else
@@ -900,6 +901,12 @@ void FtrlProblem::solve() {
             tr_loss = one_epoch_bin_free(data, true, true);
         else
             tr_loss = one_epoch(data, true, true);
+        if(!data_sp->file_name.empty()) {
+            if(param->one_pass)
+                one_epoch_bin_free(data_sp, true, true);
+            else
+                one_epoch(data_sp, true, true);
+        }
 
         if (param->causE && !prob_st->test_data->file_name.empty()) {
             if(param->one_pass)

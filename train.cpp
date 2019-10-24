@@ -14,6 +14,7 @@ struct Option
     shared_ptr<Parameter> param;
     FtrlInt verbose;
     string data_path, test_path, model_path, warm_model_path, data_profile, test_profile, featmap_path, pos_bias_map_path, warm_update_model_path;
+    string data_path_sp;
     string data_path_st, test_path_st, model_path_st, warm_model_path_st;
 };
 
@@ -55,6 +56,8 @@ string train_help()
     "-l2 <lambda_2>: set regularization coefficient on l2 regularizer (default 0.1)\n"
     "-l3 <lambda_3>: set regularization coefficient on l2 regularizer for CausE (default 0)\n"
     "-t <iter>: set number of iterations (default 20)\n"
+    "-uw <uni_weight>: universal weight for a data set (default 1.0)\n"
+    "-tr-sp <path>: set path to S plus train set (www 2020)\n"
     "-tr-st <path>: set path to st train set\n"
     "-p-st <path>: set path to st test set\n"
     "-m-st <path>: set path to st warm model\n"
@@ -150,6 +153,15 @@ Option parse_option(int argc, char **argv)
                 throw invalid_argument("-t should be followed by a number");
             option.param->nr_pass = atoi(argv[i]);
         }
+        else if(args[i].compare("-uw") == 0)
+        {
+            if((i+1) >= argc)
+                throw invalid_argument("missing core numbers after -uw");
+            i++;
+            if(!is_numerical(argv[i]))
+                throw invalid_argument("-c should be followed by a number");
+            option.param->uni_weight = atof(argv[i]);
+        }
         else if(args[i].compare("-a") == 0)
         {
             if((i+1) >= argc)
@@ -184,6 +196,14 @@ Option parse_option(int argc, char **argv)
             i++;
 
             option.test_path_st = string(args[i]);
+        }
+        else if(args[i].compare("-tr-sp") == 0)
+        {
+            if(i == argc-1)
+                throw invalid_argument("need to specify path after -tr-sp");
+            i++;
+
+            option.data_path_sp = string(args[i]);
         }
         else if(args[i].compare("-tr-st") == 0)
         {
@@ -323,6 +343,7 @@ int main(int argc, char *argv[])
 
         shared_ptr<FtrlData> data = make_shared<FtrlData>(option.data_path);
         shared_ptr<FtrlData> test_data = make_shared<FtrlData>(option.test_path);
+        shared_ptr<FtrlData> data_sp = make_shared<FtrlData>(option.data_path_sp);
         if (option.param->one_pass)
             data->parse_profile(option.data_path+".dp");
         else
@@ -338,6 +359,15 @@ int main(int argc, char *argv[])
             cout << "Va_data: ";
             test_data->print_data_info();
         }
+        if (!data_sp->file_name.empty()) {
+            if(option.param->one_pass)
+                data_sp->parse_profile(option.data_path_sp+".dp");
+            else
+                data_sp->split_chunks();
+            cout << "Sp_data: ";
+            data_sp->print_data_info();
+            data_sp->uni_weight = option.param->uni_weight;
+        }
         if(!option.featmap_path.empty()) {
             map<FtrlLong, string> pos_featmap = get_pos_featmap(option.featmap_path);
             data->pos_featmap = make_shared<map<FtrlLong, string>> (pos_featmap);
@@ -346,6 +376,7 @@ int main(int argc, char *argv[])
 
         FtrlProblem prob(data, test_data, option.param);
         prob.initialize(option.param->normalized, option.warm_model_path);
+        prob.data_sp = data_sp;
         if (option.param->causE) {
             cout << "Solver Type: CausE FTRL" << endl;
             shared_ptr<FtrlData> data_st = make_shared<FtrlData>(option.data_path_st);

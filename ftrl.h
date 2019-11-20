@@ -45,8 +45,8 @@ class Parameter {
 public:
     FtrlFloat l1, l2, l3, alpha, beta;
     FtrlInt nr_pass = 20, nr_threads = 1, solver = 0;
-    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE, uni_weight;
-    Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false), uni_weight(1.0){};
+    bool normalized, verbose, freq, auto_stop, no_auc, in_memory, one_pass, weight, save_update, causE, uni_weight, www;
+    Parameter():l1(0.1), l2(0.1), l3(0), alpha(0.1), beta(1), normalized(false), verbose(true), freq(false), auto_stop(false), no_auc(false), in_memory(false), one_pass(false), weight(false), save_update(false), causE(false), uni_weight(1.0), www(false){};
 };
 
 class FtrlChunk {
@@ -90,6 +90,7 @@ public:
     };
     void print_data_info();
     void split_chunks();
+    void split_chunks_www(FtrlFloat uniweight);
     void write_meta();
     void read_meta();
     void parse_profile(string profile_name);

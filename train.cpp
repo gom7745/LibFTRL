@@ -76,6 +76,7 @@ string train_help()
     "--weight: train with weighted instance\n"
     "--save-update: save updated weight only\n"
     "--causE: causE FTRL\n"
+    "--www: (www 2020)\n"
     "--updated: save updated model only\n"
     "--auto-stop: stop at the iteration that achieves the best validation loss (must be used with -p)\n"
     );
@@ -309,6 +310,11 @@ Option parse_option(int argc, char **argv)
         {
             option.param->causE = true;
         }
+        else if(args[i].compare("--www") == 0)
+        {
+            option.param->www = true;
+            option.param->weight = true;
+        }
         else if(args[i].compare("--updated") == 0)
         {
             option.param->save_update = true;
@@ -346,8 +352,12 @@ int main(int argc, char *argv[])
         shared_ptr<FtrlData> data_sp = make_shared<FtrlData>(option.data_path_sp);
         if (option.param->one_pass)
             data->parse_profile(option.data_path+".dp");
-        else
-            data->split_chunks();
+        else {
+            if(option.param->www)
+                data->split_chunks_www(option.param->uni_weight);
+            else
+                data->split_chunks();
+        }
         cout << "Tr_data: ";
         data->print_data_info();
 

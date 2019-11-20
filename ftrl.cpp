@@ -188,6 +188,80 @@ void FtrlData::parse_profile(string profile_name) {
     }
 }
 
+void FtrlData::split_chunks_www(FtrlFloat uni_weight) {
+    string line;
+    ifstream fs(file_name);
+    this->weighted = true;
+
+    FtrlInt i = 0, chunk_id = 0;
+    FtrlChunk chunk(file_name, chunk_id);
+    nr_chunk++;
+
+    chunk.nnzs.push_back(i);
+
+    while (getline(fs, line)) {
+        FtrlFloat label = 0;
+        istringstream iss(line);
+
+        l++;
+        chunk.l++;
+
+        iss >> label;
+        label = (label>0)? 1:-1;
+        chunk.labels.push_back(label);
+
+        FtrlInt idx = 0;
+        FtrlFloat val = 0;
+
+        char dummy;
+        FtrlFloat r = 0;
+        FtrlInt max_nnz = 0;
+        bool is_rec = false;
+        while (iss >> idx >> dummy >> val) {
+            if(idx == 42423525) {
+                is_rec = true;
+                continue;
+            }
+            i++;
+            max_nnz++;
+            if (n < idx+1) {
+                n = idx+1;
+            }
+            nnz_idx.insert(idx);
+            chunk.nodes.push_back(Node(idx, val));
+            r += val*val;
+        }
+        if(is_rec)
+            weight.push_back(1.0);
+        else
+            weight.push_back(uni_weight);
+        chunk.nnzs.push_back(i);
+        chunk.R.push_back(1/sqrt(r));
+        if (i > chunk_size) {
+
+            chunk.nnz = i;
+            chunk.write();
+            chunk.clear();
+
+            chunks.push_back(chunk);
+
+            i = 0;
+            chunk_id++;
+            chunk = FtrlChunk(file_name, chunk_id);
+            chunk.nnzs.push_back(i);
+            nr_chunk++;
+        }
+    }
+    sum_weight = 1.0;
+
+    chunk.nnz = i;
+    chunk.write();
+    chunk.clear();
+
+    chunks.push_back(chunk);
+    write_meta();
+}
+
 void FtrlData::split_chunks() {
     if(exists(meta_name)) {
         read_meta();
